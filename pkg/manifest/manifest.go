@@ -205,6 +205,8 @@ func (s Svc) generateDeploy(deploy *config.Deploy) error {
 		if t, err = s.injectNamespace(deploy, rendered.Bytes()); err != nil {
 			return err
 		}
+	} else {
+		t = rendered.Bytes()
 	}
 
 	// write manifest

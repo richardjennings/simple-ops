@@ -5,15 +5,14 @@ import (
 	"github.com/spf13/afero"
 	"gotest.tools/assert"
 	"io/ioutil"
+	"path/filepath"
 	"testing"
 )
 
-func TestSvc_GenerateVerify(t *testing.T) {
-	fs := afero.NewMemMapFs()
+func setupWithTestChart(t *testing.T, fs afero.Fs) {
 	if err := fs.MkdirAll("/test", config.DefaultConfigDirPerm); err != nil {
 		t.Fatal(err)
 	}
-	m := NewSvc(fs, "/test")
 	// set up directories
 	if err := fs.MkdirAll("/test/config", config.DefaultConfigDirPerm); err != nil {
 		t.Fatal(err)
@@ -35,6 +34,14 @@ func TestSvc_GenerateVerify(t *testing.T) {
 	if err := afero.WriteFile(fs, "/test/charts/test-0.1.0.tgz", chrt, 0655); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestSvc_GenerateVerify(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	m := NewSvc(fs, "/test")
+
+	setupWithTestChart(t, fs)
+
 	withData := "metadata:\n"
 	if err := afero.WriteFile(fs, "/test/with/file.yml", []byte(withData), 0655); err != nil {
 		t.Fatal(err)
@@ -111,4 +118,30 @@ spec:
 		t.Fatal(err)
 	}
 	assert.Equal(t, "metadata:\n  name: path\n", string(withPath))
+}
+
+func TestSvc_generateDeploy(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	m := NewSvc(fs, "/test")
+	m.tmp = "/test"
+
+	setupWithTestChart(t, fs)
+	deploy := &config.Deploy{
+		Chart:     "test-0.1.0.tgz",
+		Name:      "env",
+		Component: "test",
+	}
+	err := m.generateDeploy(deploy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err := afero.ReadFile(fs, filepath.Join(m.tmp, "deploy/env/test/manifest.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := `---
+# Source: test/templates/test.yaml
+test:
+`
+	assert.Equal(t, string(actual), expected)
 }
