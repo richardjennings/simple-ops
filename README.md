@@ -24,7 +24,7 @@ config
 deploy
 with
 ```
-The ```charts``` directory contains helm charts in tgz form added via simple-ops add, alongside and charts authored locally.
+The ```charts``` directory contains helm charts in tgz form added via simple-ops add, alongside any charts authored locally.
     
 ```config``` contains a yaml configuration file for each component or chart. For example a chart app-1.1.0.tgz should be configured 
 via a ```config/app.yml``` configuration file.
