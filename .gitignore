@@ -1,0 +1,9 @@
+.idea
+charts
+config
+!pkg/config
+deploy
+simple-ops
+!simple-ops.go
+simple-ops.yml
+
