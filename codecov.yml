@@ -2,3 +2,6 @@ coverage:
   precision: 2
   round: down
   range: "50...100"
+  status:
+    patch: false
+    changes: false
