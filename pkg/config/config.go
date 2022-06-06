@@ -161,7 +161,7 @@ func (s Svc) getConfigPaths() (map[string]string, error) {
 	path := ConfPath
 
 	configFiles := make(map[string]string)
-	if f, err = s.appFs.Open(path); err != nil {
+	if f, err = s.appFs.Open(filepath.Join(s.wd, path)); err != nil {
 		return nil, err
 	}
 	defer func() {
@@ -190,7 +190,7 @@ func (s Svc) parseConfig(path string) (map[string]interface{}, error) {
 	var err error
 	var c map[string]interface{}
 
-	if data, err = s.appFs.ReadFile(path); err != nil {
+	if data, err = s.appFs.ReadFile(filepath.Join(s.wd, path)); err != nil {
 		return nil, err
 	}
 

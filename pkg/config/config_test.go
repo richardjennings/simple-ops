@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/afero"
 	"gotest.tools/assert"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -29,10 +30,9 @@ func TestSvc_Init(t *testing.T) {
 
 func TestSvc_Deploys(t *testing.T) {
 	var err error
-	var s = string(os.PathSeparator)
 	var p = ConfPath
-	var cfgPath = p + s + "b" + Suffix
 	c := NewSvc(afero.NewMemMapFs(), "/test")
+	var cfgPath = filepath.Join(c.wd, p, "b"+Suffix)
 	yml := []byte(`
 chart: b.tgz
 namespace:
@@ -125,10 +125,10 @@ func TestSvc_getConfigPaths(t *testing.T) {
 	if err = c.appFs.Mkdir(p+s+"a", DefaultConfigFsPerm); err != nil {
 		t.Fatal(err)
 	}
-	if err = afero.WriteFile(c.appFs, p+s+"b"+Suffix, []byte{}, DefaultConfigFsPerm); err != nil {
+	if err = afero.WriteFile(c.appFs, filepath.Join(c.wd, p, "b")+Suffix, []byte{}, DefaultConfigFsPerm); err != nil {
 		t.Fatal(err)
 	}
-	if err = afero.WriteFile(c.appFs, p+s+"c.yaml", []byte{}, DefaultConfigFsPerm); err != nil {
+	if err = afero.WriteFile(c.appFs, filepath.Join(c.wd, p, "c.yaml"), []byte{}, DefaultConfigFsPerm); err != nil {
 		t.Fatal(err)
 	}
 	paths, err := c.getConfigPaths()
@@ -154,7 +154,7 @@ func TestSvc_parseConfig(t *testing.T) {
 		if err := c.appFs.Mkdir(ConfPath, DefaultConfigFsPerm); err != nil {
 			t.Fatal(err)
 		}
-		if err := afero.WriteFile(c.appFs, tc.path, []byte(tc.content), DefaultConfigFsPerm); err != nil {
+		if err := afero.WriteFile(c.appFs, filepath.Join(c.wd, tc.path), []byte(tc.content), DefaultConfigFsPerm); err != nil {
 			t.Fatal(err)
 		}
 		actual, err := c.parseConfig(tc.path)
@@ -191,6 +191,23 @@ func TestSvc_buildDeploys(t *testing.T) {
 		t.Error(err)
 	}
 	expected := Deploys{"test": &Deploy{Values: map[string]interface{}{"overridesTrue": "false"}, Component: "test", Name: "test"}}
+	assert.DeepEqual(t, expected, actual)
+}
+
+func TestSvc_buildDeploys_without_values(t *testing.T) {
+	// a. test to check boolean false can override boolean true
+	// this does not work with mergo library or helm 2
+	m := map[string]interface{}{
+		"deploy": map[string]interface{}{
+			"test": map[string]interface{}{},
+		},
+	}
+	component := "test"
+	actual, err := buildDeploys(m, component)
+	if err != nil {
+		t.Error(err)
+	}
+	expected := Deploys{"test": &Deploy{Values: nil, Component: "test", Name: "test"}}
 	assert.DeepEqual(t, expected, actual)
 }
 
