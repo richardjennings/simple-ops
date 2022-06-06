@@ -20,3 +20,10 @@ func TestSvc_SHA256(t *testing.T) {
 	}
 	assert.Equal(t, sha, "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3")
 }
+
+func TestSvc_SHA256_invalid_path(t *testing.T) {
+	c := NewSvc(afero.NewMemMapFs())
+	sha, err := c.SHA256("/test")
+	assert.Equal(t, sha, "")
+	assert.Error(t, err, "path: /test not found")
+}
