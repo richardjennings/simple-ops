@@ -36,5 +36,60 @@ the expected structure is ```deploy/test/myapp/manifest.yaml```
 with ancillaries such as Istio configuration, ```with``` provides a mechanism to define templates that are either included
 in the generated manifests or optionally written to a specified path; useful for the management of ArgoCD applications for example.
 
+A typical configuration file looks like:
+```
+chart: reviews-1.0.1.tgz
+namespace:
+    name:   reviews 
+    create: true
+    inject: true # uses kustomize to add namespace meta property to applicable kinds.
+values: # values at the top level apply to all deploy environments unless overriten by deploy.environment.values configuration
+  name: reviews    
+deploy:
+  staging:
+    chart: reviews-1.0.2.tgz # all parent level config (aside from deploy) can be overriden per deployment config
+    values: # helm chart variables
+      imgSrc: abc1234
+    with:
+      applciation:
+        reviews: # creates an application called reviews using with/application.yml as a template
+          path: apps/staging/reviews.yaml # the application is written to this path rather than deploy/staging/review
+          values:
+            spec:
+              path: deploy/staging/reviews/manifest.yaml
+      virtualService:
+        reviews: # create a virtual service manifest using with/virtualService.yml called reviews
+          values:
+            spec:
+              hosts:
+              - reviews.prod.svc.cluster.local
+              http:
+              - name: "reviews-v1-route"
+                route:
+                - destination:
+                    host: reviews.prod.svc.cluster.local
+                    subset: v1
+```
+Running ```simple-ops generate``` results in ```deploy/staging/reviews/manifest.yaml``` and ```apps/staging/reviews.yaml```
 
+
+## Usage
+```
+
+Available Commands:
+  add         add a Helm chart as tgz
+  completion  Generate the autocompletion script for the specified shell
+  generate    generate deployment manifests from config
+  help        Help about any command
+  init        init simple-ops structure
+  set         modify configuration
+  verify      verify deployment manifests match config
+
+Flags:
+  -h, --help               help for simple-ops
+  -v, --verbosity string    (default "error")
+  -w, --workdir string      (default ".")
+
+Use "simple-ops [command] --help" for more information about a command.
+```
 
