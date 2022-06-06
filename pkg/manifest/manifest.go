@@ -363,6 +363,9 @@ func (s Svc) pathForChart(p string) string {
 func (s Svc) renameDirectory(from string, to string) error {
 	switch s.appFs.Fs.(type) {
 	case *afero.OsFs:
+		if err := os.RemoveAll(filepath.Join(to, config.DeployPath)); err != nil {
+			return err
+		}
 		return cp.Copy(from, to)
 	case *afero.MemMapFs:
 		// move files (not a fan of this)
