@@ -366,7 +366,10 @@ func (s Svc) renameDirectory(from string, to string) error {
 		if err := os.RemoveAll(filepath.Join(to, config.DeployPath)); err != nil {
 			return err
 		}
-		return cp.Copy(from, to)
+		if err := s.appFs.MkdirAll(to, defaultDirPerm); err != nil {
+			return err
+		}
+		return cp.Copy(from, to, cp.Options{AddPermission: defaultFilePerm, PreserveOwner: true})
 	case *afero.MemMapFs:
 		// move files (not a fan of this)
 		// string prefix should be ok because we are inside path already

@@ -5,3 +5,4 @@ coverage:
   status:
     patch: false
     changes: false
+    project: false
