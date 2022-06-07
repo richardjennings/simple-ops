@@ -37,7 +37,7 @@ with ancillaries such as Istio configuration, ```with``` provides a mechanism to
 in the generated manifests or optionally written to a specified path; useful for the management of ArgoCD applications for example.
 
 A typical configuration file looks like:
-```
+```yaml
 chart: reviews-1.0.1.tgz
 namespace:
     name:   reviews 
