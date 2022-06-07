@@ -9,7 +9,7 @@ COPY go.mod .
 COPY go.sum .
 RUN go mod download
 COPY . .
-RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -o simple-ops simple-ops.go
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -o simple-ops main.go
 
 FROM scratch
 COPY --chown=65534:0 --from=builder /build/simple-ops /
