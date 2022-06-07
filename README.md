@@ -18,6 +18,21 @@ docker run --platform linux/arm64 richardjennings/simple-ops:0.0.1
 
 SimpleOps can be used via a GitHub Actions implementation at [https://github.com/richardjennings/simple-ops-action](https://github.com/richardjennings/simple-ops-action)
 
+## GitOps Principles
+[Weaveworks Vendor Neutral GitOps](https://www.weave.works/blog/opengitops-the-vendor-neutral-gitops-project)
+
+1. A desired state as expressed in a declarative system
+    - SimpleOps expects dependencies to be vendored explicitly, subscribing to the 'single source of truth' philosophy
+2. Immutable versions of that desired state
+    - Everything gets recorded: configuration changes are managed via machine as simple-ops set or by hand and are 
+   intended to be committed to Git with ```simple-ops verify``` passing.
+3. Continuous state reconciliation
+    - Not covered by SimpleOps
+4. Operations through declaration
+    - The generated and verified configuration managed by SimpleOps including the configuration to verify and regenerate
+   deployment manifests updated either by CI/CD or by hand are made available via Git repository. 
+
+
 ## Quick Start
 
 A directory can be created with the structure SimpleOps expects using init:
