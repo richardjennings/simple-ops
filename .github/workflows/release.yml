@@ -32,4 +32,4 @@ jobs:
           file: Containerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: richardjennings/simple-ops:${{ github.ref }}
+          tags: richardjennings/simple-ops:${{ github.ref_name }}
