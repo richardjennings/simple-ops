@@ -7,8 +7,16 @@ SimpleOps is a GitOps repository management tool designed to leverage:
 * composition for extensibility
 * narrow scope for compatability with a large range of usage patterns
 
-
 For an example use of SimpleOps to manage a GitOps repository see [Simple Ops Example](https://github.com/richardjennings/simple-ops-example)
+
+Multi-arch (amd64, arm64) container images are available at [https://hub.docker.com/repository/docker/richardjennings/simple-ops](https://hub.docker.com/repository/docker/richardjennings/simple-ops)
+
+```
+docker run richardjennings/simple-ops:0.0.1
+docker run --platform linux/arm64 richardjennings/simple-ops:0.0.1
+```
+
+SimpleOps can be used via a GitHub Actions implementation at [https://github.com/richardjennings/simple-ops-action](https://github.com/richardjennings/simple-ops-action)
 
 ## Quick Start
 
