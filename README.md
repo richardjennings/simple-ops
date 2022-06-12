@@ -1,41 +1,48 @@
-# SimpleOps
+# Simple-Ops
+[![Go Documentation](https://godocs.io/github.com/richardjennings/simple-ops/pkg/config?status.svg)](https://godocs.io/github.com/richardjennings/simple-ops/pkg/config)
+[![codecov](https://codecov.io/gh/richardjennings/simple-ops/branch/main/graph/badge.svg?token=TLYP6632YV)](https://codecov.io/gh/richardjennings/simple-ops)
+![example branch parameter](https://github.com/richardjennings/simple-ops/actions/workflows/codecov.yml/badge.svg?branch=main)
 
-SimpleOps is a GitOps repository management tool designed to leverage:
+Simple-Ops is a GitOps repository management tool designed to leverage:
 
-* repeatability for verification and consistency
-* local and complete dependencies for reliability and resilience
-* composition for extensibility
-* narrow scope for compatability with a large range of usage patterns
+* Repeatability for verification and consistency.
+* Local and complete dependencies for reliability and resilience.
+* Composition for extensibility.
+* Narrow scope for compatability with a large range of usage patterns.
 
-For an example use of SimpleOps to manage a GitOps repository see [Simple Ops Example](https://github.com/richardjennings/simple-ops-example)
+For an example use of Simple-Ops to manage a GitOps repository see [Simple Ops Example](https://github.com/richardjennings/simple-ops-example)
 
 Multi-arch (amd64, arm64) container images are available at [https://hub.docker.com/repository/docker/richardjennings/simple-ops](https://hub.docker.com/repository/docker/richardjennings/simple-ops)
 
-```
-docker run richardjennings/simple-ops:0.0.1
-docker run --platform linux/arm64 richardjennings/simple-ops:0.0.1
+## Example Usage
+
+```bash
+docker run --rm -v $PWD:/workdir richardjennings/simple-ops:0.0.3
+
+# multi-architecture support via --platform
+docker run --platform linux/arm64 --rm -v $PWD:/workdir richardjennings/simple-ops:0.0.3
 ```
 
-SimpleOps can be used via a GitHub Actions implementation at [https://github.com/richardjennings/simple-ops-action](https://github.com/richardjennings/simple-ops-action)
+Simple-Ops can be used via a GitHub Actions implementation at [https://github.com/richardjennings/simple-ops-action](https://github.com/richardjennings/simple-ops-action)
 
 ## GitOps Principles
 [Weaveworks Vendor Neutral GitOps](https://www.weave.works/blog/opengitops-the-vendor-neutral-gitops-project)
 
 1. A desired state as expressed in a declarative system
-    - SimpleOps expects dependencies to be vendored explicitly, subscribing to the 'single source of truth' philosophy
+    - Simple-Ops expects dependencies to be vendored explicitly, subscribing to the 'single source of truth' philosophy
 2. Immutable versions of that desired state
     - Everything gets recorded: configuration changes are managed via machine as simple-ops set or by hand and are 
    intended to be committed to Git with ```simple-ops verify``` passing.
 3. Continuous state reconciliation
-    - Not covered by SimpleOps
+    - Not covered by Simple-Ops
 4. Operations through declaration
-    - The generated and verified configuration managed by SimpleOps including the configuration to verify and regenerate
+    - The generated and verified configuration managed by Simple-Ops including the configuration to verify and regenerate
    deployment manifests updated either by CI/CD or by hand are made available via Git repository. 
 
 
 ## Quick Start
 
-A directory can be created with the structure SimpleOps expects using init:
+A directory can be created with the structure Simple-Ops expects using ```simple-ops init```:
 ```
 simple-ops init -w /path/to/directory
 ```
@@ -98,7 +105,6 @@ Running ```simple-ops generate``` results in ```deploy/staging/reviews/manifest.
 
 ## Usage
 ```
-
 Available Commands:
   add         add a Helm chart as tgz
   completion  Generate the autocompletion script for the specified shell

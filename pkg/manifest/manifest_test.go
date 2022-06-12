@@ -43,7 +43,10 @@ func TestSvc_GenerateVerify(t *testing.T) {
 	setupWithTestChart(t, fs)
 
 	withData := "metadata:\n"
-	if err := afero.WriteFile(fs, "/test/with/file.yml", []byte(withData), 0655); err != nil {
+	if err := afero.WriteFile(fs, "/test/with/file.yml", []byte(withData), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := afero.WriteFile(fs, "/test/with/thing.yml", []byte(withData), 0755); err != nil {
 		t.Fatal(err)
 	}
 	deploys := config.Deploys{
@@ -72,6 +75,10 @@ func TestSvc_GenerateVerify(t *testing.T) {
 					"path": config.With{
 						Path: "file.yaml",
 					},
+				},
+				"thing": {
+					"aa": config.With{},
+					"a":  config.With{},
 				},
 			},
 			Name:      "env",
@@ -111,6 +118,16 @@ metadata:
   namespace: test
 spec:
   a: b
+---
+# Source: simple-ops with thing.yml
+metadata:
+  name: a
+  namespace: test
+---
+# Source: simple-ops with thing.yml
+metadata:
+  name: aa
+  namespace: test
 `
 	assert.Equal(t, string(manifest), expect)
 
