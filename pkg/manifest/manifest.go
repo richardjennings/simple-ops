@@ -181,9 +181,19 @@ func (s Svc) generateDeploy(deploy *config.Deploy) error {
 	rendered.Write([]byte(rel.Manifest))
 
 	// with
-	var ordered []string
 	if deploy.With != nil {
-		for p, withs := range deploy.With {
+		// ordered with templates
+		var orderedFiles []string
+		for p, _ := range deploy.With {
+			orderedFiles = append(orderedFiles, p)
+		}
+		sort.Strings(orderedFiles)
+		for _, p := range orderedFiles {
+			withs, ok := deploy.With[p]
+			if !ok {
+				return fmt.Errorf("could not find with %s", p)
+			}
+			var ordered []string
 			// iterate in-order such that the generated output
 			// is idempotent
 			for name := range withs {
