@@ -66,6 +66,9 @@ func TestSvc_GenerateVerify(t *testing.T) {
 							},
 						},
 					},
+					"before": config.With{
+						Values: map[string]interface{}{},
+					},
 					"path": config.With{
 						Path: "file.yaml",
 					},
@@ -95,6 +98,11 @@ status: {}
 # Source: test/templates/test.yaml
 test: true
 metadata:
+  namespace: test
+---
+# Source: simple-ops with file.yml
+metadata:
+  name: before
   namespace: test
 ---
 # Source: simple-ops with file.yml

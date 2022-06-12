@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/kustomize/api/filters/namespace"
 	"sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/kio"
+	"sort"
 	"strings"
 
 	"os"
@@ -180,9 +181,20 @@ func (s Svc) generateDeploy(deploy *config.Deploy) error {
 	rendered.Write([]byte(rel.Manifest))
 
 	// with
+	var ordered []string
 	if deploy.With != nil {
 		for p, withs := range deploy.With {
-			for name, with := range withs {
+			// iterate in-order such that the generated output
+			// is idempotent
+			for name := range withs {
+				ordered = append(ordered, name)
+			}
+			sort.Strings(ordered)
+			for _, name := range ordered {
+				with, ok := withs[name]
+				if !ok {
+					return fmt.Errorf("could not find with %s", name)
+				}
 				if with.Path == "" {
 					t, err = s.generateWith(p, with, name)
 					if err != nil {
