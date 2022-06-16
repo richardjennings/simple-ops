@@ -25,6 +25,6 @@ func init() {
 }
 
 func Add(cmd *cobra.Command, args []string) {
-	s := manifest.NewSvc(afero.NewOsFs(), workdir)
+	s := manifest.NewSvc(afero.NewOsFs(), workdir, log)
 	cobra.CheckErr(s.Pull(args[0], repository, version, addConfig))
 }

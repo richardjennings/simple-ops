@@ -14,6 +14,8 @@ var rootCmd = &cobra.Command{
 	Short: "A simple GitOps workflow tool",
 }
 
+var log = logrus.New()
+
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVarP(&verbosity, "verbosity", "v", logrus.ErrorLevel.String(), "")
@@ -23,8 +25,8 @@ func init() {
 func initConfig() {
 	lvl, err := logrus.ParseLevel(verbosity)
 	cobra.CheckErr(err)
-	logrus.SetLevel(lvl)
-	logrus.SetOutput(os.Stdout)
+	log.SetLevel(lvl)
+	log.SetOutput(os.Stdout)
 }
 
 // Execute executes the root command.

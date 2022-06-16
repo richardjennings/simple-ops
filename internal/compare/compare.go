@@ -3,6 +3,7 @@ package compare
 import (
 	"crypto/sha256"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"io"
 	"os"
@@ -11,11 +12,12 @@ import (
 type (
 	Svc struct {
 		AppFs afero.Afero
+		log   *logrus.Logger
 	}
 )
 
-func NewSvc(fs afero.Fs) *Svc {
-	return &Svc{AppFs: afero.Afero{Fs: fs}}
+func NewSvc(fs afero.Fs, log *logrus.Logger) *Svc {
+	return &Svc{AppFs: afero.Afero{Fs: fs}, log: log}
 }
 
 // SHA256 computes the hash of files in path directory
