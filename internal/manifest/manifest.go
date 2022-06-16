@@ -121,7 +121,7 @@ func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig boo
 	if err != nil {
 		return err
 	}
-	_ = out // @todo log output
+	s.log.Debugf("helm pull: %s\n", out)
 	if addConfig == true {
 		conf := "chart: " + chartRef + "-" + version + ".tgz"
 		path := s.wd + string(os.PathSeparator) + cfg.ConfPath + string(os.PathSeparator) + chartRef + ".yml"
@@ -156,6 +156,7 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 	var t []byte
 	var rendered bytes.Buffer
 
+	s.log.Debugf("generating deploy %s:%s", deploy.Component, deploy.Name)
 	if chrt, err = s.loadChart(deploy); err != nil {
 		return err
 	}
@@ -170,6 +171,7 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 			return err
 		}
 		rendered.Write(t)
+		s.log.Debugf("created namespace manifest for %s:%s", deploy.Component, deploy.Name)
 	}
 	s.client.ReleaseName = deploy.Component
 	s.client.Namespace = deploy.Namespace.Name
@@ -181,6 +183,7 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 		return err
 	}
 	rendered.Write([]byte(rel.Manifest))
+	s.log.Debugf("rendered chart %s.%s for %s:%s", chrt.Name(), chrt.Metadata.Version, deploy.Component, deploy.Name)
 
 	// with
 	if deploy.With != nil {
@@ -215,10 +218,13 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 					rendered.Write([]byte("---\n"))
 					rendered.Write([]byte(fmt.Sprintf("# Source: simple-ops with %s.yml\n", p)))
 					rendered.Write(t)
+					s.log.Debugf("generated with %s type %s for %s:%s", name, p, deploy.Component, deploy.Name)
+
 				} else {
 					if err := s.generateWithToPath(p, with, name); err != nil {
 						return err
 					}
+					s.log.Debugf("generated with %s type %s for %s:%s to path %s", name, p, deploy.Component, deploy.Name, with.Path)
 				}
 			}
 		}
@@ -229,12 +235,18 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 		if t, err = s.injectNamespace(deploy, rendered.Bytes()); err != nil {
 			return err
 		}
+		s.log.Debugf("injected namespace %s", deploy.Namespace.Name)
 	} else {
 		t = rendered.Bytes()
 	}
 
 	// write manifest
-	return s.appFs.WriteFile(s.pathForTmpManifest(deploy), t, defaultFilePerm)
+	path := s.pathForTmpManifest(deploy)
+	if err := s.appFs.WriteFile(path, t, defaultFilePerm); err != nil {
+		return err
+	}
+	s.log.Debugf("wrote manifest to %s", path)
+	return nil
 }
 
 // generateWith uses file named with/{n}.yml as a template rendered
@@ -339,8 +351,7 @@ func (s Svc) loadChart(deploy *cfg.Deploy) (*chart.Chart, error) {
 		}
 	}
 
-	// check chart dependencies
-	// @todo
+	// @todo check chart dependencies
 	if len(chrt.Dependencies()) != len(chrt.Metadata.Dependencies) {
 		return nil, errors.New("dependencies not installed")
 	}

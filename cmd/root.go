@@ -26,6 +26,7 @@ func initConfig() {
 	lvl, err := logrus.ParseLevel(verbosity)
 	cobra.CheckErr(err)
 	log.SetLevel(lvl)
+	log.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
 	log.SetOutput(os.Stdout)
 }
 

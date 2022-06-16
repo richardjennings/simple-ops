@@ -84,6 +84,7 @@ func (s Svc) Deploys() (map[string]Deploys, error) {
 				return nil, errors.New("duplicate deploy name found somehow")
 			}
 			deploys[component][k] = v
+			s.log.Debugf("found component: %s for env %s\n", component, k)
 		}
 	}
 
