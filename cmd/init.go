@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/richardjennings/simple-ops/pkg/config"
+	"github.com/richardjennings/simple-ops/internal/config"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 )

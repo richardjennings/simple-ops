@@ -1,7 +1,7 @@
 package manifest
 
 import (
-	"github.com/richardjennings/simple-ops/pkg/config"
+	"github.com/richardjennings/simple-ops/internal/config"
 	"github.com/spf13/afero"
 	"gotest.tools/assert"
 	"io/ioutil"
