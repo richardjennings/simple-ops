@@ -212,6 +212,74 @@ func TestSvc_buildDeploys_without_values(t *testing.T) {
 	assert.DeepEqual(t, expected, actual)
 }
 
+func setupSetTest(t *testing.T, configFile string, configBytes []byte) *Svc {
+	var err error
+	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
+	if err = c.appFs.Mkdir("/test/config", DefaultConfigFsPerm); err != nil {
+		t.Fatal(err)
+	}
+	// create a directory to be ignored
+	if err = c.appFs.WriteFile(configFile, configBytes, DefaultConfigFsPerm); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func TestSvc_SetNewConfigPathMap(t *testing.T) {
+	c := setupSetTest(t, "/test/config/a.yml", []byte("chart: a.yml\ndeploy:\n  example:\n    values:\n"))
+	if err := c.Set("a.deploy.example.values.foo", "bar"); err != nil {
+		t.Error(err)
+	}
+	expected := "chart: a.yml\ndeploy:\n  example:\n    values:\n      foo: bar\n"
+	actual, err := c.appFs.ReadFile("/test/config/a.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, expected, string(actual))
+}
+
+func TestSvc_SetExistingConfigPathMap(t *testing.T) {
+	conf := []byte("chart: a.yml\ndeploy:\n  example:\n    values:\n      foo: foo")
+	c := setupSetTest(t, "/test/config/a.yml", conf)
+	if err := c.Set("a.deploy.example.values.foo", "bar"); err != nil {
+		t.Error(err)
+	}
+	expected := "chart: a.yml\ndeploy:\n  example:\n    values:\n      foo: bar\n"
+	actual, err := c.appFs.ReadFile("/test/config/a.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, expected, string(actual))
+}
+
+func TestSvc_SetNewListString(t *testing.T) {
+	conf := []byte("chart: a.yml\ndeploy:\n  example:\n    values:\n")
+	c := setupSetTest(t, "/test/config/a.yml", conf)
+	if err := c.Set("a.deploy.example.values.foo.0", "bar"); err != nil {
+		t.Error(err)
+	}
+	expected := "chart: a.yml\ndeploy:\n  example:\n    values:\n      foo:\n      - bar\n"
+	actual, err := c.appFs.ReadFile("/test/config/a.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, expected, string(actual))
+}
+
+func TestSvc_SetNewListMapString(t *testing.T) {
+	conf := []byte("chart: a.yml\ndeploy:\n  example:\n    values:\n")
+	c := setupSetTest(t, "/test/config/a.yml", conf)
+	if err := c.Set("a.deploy.example.values.foo.0.foo", "bar"); err != nil {
+		t.Error(err)
+	}
+	expected := "chart: a.yml\ndeploy:\n  example:\n    values:\n      foo:\n      - foo: bar\n"
+	actual, err := c.appFs.ReadFile("/test/config/a.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, expected, string(actual))
+}
+
 func TestNewSvc(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	c := NewSvc(fs, "/test", logrus.New())

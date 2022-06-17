@@ -285,8 +285,8 @@ func set(m interface{}, path []string, v string) error {
 			m[p] = v
 			return nil
 		}
-		if _, ok := m[p]; !ok {
-			m[p] = make(map[string]interface{})
+		if vv, ok := m[p]; !ok || vv == nil {
+			m[p] = setType(path[1])
 		}
 		if err := set(m[p], path[1:], v); err != nil {
 			return err
@@ -299,12 +299,25 @@ func set(m interface{}, path []string, v string) error {
 		if l == 1 {
 			m[i] = v
 			return nil
+		} else {
+			m[i] = setType(path[1])
 		}
-		if err = set(m[i], path[1:], v); err != nil {
-			return err
-		}
+		return set(m[i], path[1:], v)
 	default:
-		return errors.New("unhandled")
+		return errors.New("unhandled type")
 	}
 	return nil
+}
+
+func setType(p string) interface{} {
+	if pp, err := strconv.Atoi(p); err == nil {
+		// should be a list
+		if pp < 0 {
+			return errors.New("index less than 0")
+		}
+		return make([]interface{}, pp+1)
+	} else {
+		// or map
+		return make(map[string]interface{})
+	}
 }

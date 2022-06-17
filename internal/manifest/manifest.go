@@ -121,13 +121,17 @@ func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig boo
 	if err != nil {
 		return err
 	}
-	s.log.Debugf("helm pull: %s\n", out)
+	if out != "" {
+		s.log.Debugf("helm pull: %s\n", out)
+	}
+	s.log.Debugf("saved chart %s-%s.tgz to %s", chartRef, version, p.DestDir)
 	if addConfig == true {
 		conf := "chart: " + chartRef + "-" + version + ".tgz"
 		path := s.wd + string(os.PathSeparator) + cfg.ConfPath + string(os.PathSeparator) + chartRef + ".yml"
 		if err := ioutil.WriteFile(path, []byte(conf), defaultFilePerm); err != nil {
 			return err
 		}
+		s.log.Debugf("added config file for chart %s-%s.tgz", chartRef, version)
 	}
 	return nil
 }
