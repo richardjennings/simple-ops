@@ -17,10 +17,10 @@ Multi-arch (amd64, arm64) container images are available at [https://hub.docker.
 ## Example Usage
 
 ```bash
-docker run --rm -v $PWD:/workdir richardjennings/simple-ops:0.0.3
+docker run --rm -v $PWD:/workdir richardjennings/simple-ops:latest
 
 # multi-architecture support via --platform
-docker run --platform linux/arm64 --rm -v $PWD:/workdir richardjennings/simple-ops:0.0.3
+docker run --platform linux/arm64 --rm -v $PWD:/workdir richardjennings/simple-ops:latest
 ```
 
 Simple-Ops can be used via a GitHub Actions implementation at [https://github.com/richardjennings/simple-ops-action](https://github.com/richardjennings/simple-ops-action)
