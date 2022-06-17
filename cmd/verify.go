@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/richardjennings/simple-ops/pkg/config"
-	"github.com/richardjennings/simple-ops/pkg/manifest"
+	"github.com/richardjennings/simple-ops/internal/cfg"
+	"github.com/richardjennings/simple-ops/internal/manifest"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"os"
@@ -20,10 +20,10 @@ func init() {
 }
 
 func Verify(cmd *cobra.Command, args []string) {
-	var deploys map[string]config.Deploys
+	var deploys map[string]cfg.Deploys
 	var err error
-	cfg := config.NewSvc(afero.NewOsFs(), workdir)
-	gen := manifest.NewSvc(afero.NewOsFs(), workdir)
+	cfg := cfg.NewSvc(afero.NewOsFs(), workdir, log)
+	gen := manifest.NewSvc(afero.NewOsFs(), workdir, log)
 	deploys, err = cfg.Deploys()
 	cobra.CheckErr(err)
 	correct, err := gen.Verify(deploys)

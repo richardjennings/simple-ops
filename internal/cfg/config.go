@@ -1,9 +1,10 @@
-package config
+package cfg
 
 import (
 	"errors"
 	"fmt"
 	"github.com/ghodss/yaml"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"os"
 	"path/filepath"
@@ -25,6 +26,7 @@ type (
 	Svc struct {
 		appFs afero.Afero
 		wd    string
+		log   *logrus.Logger
 	}
 	Deploy struct {
 		Namespace Namespace              `json:"namespace"`
@@ -55,8 +57,8 @@ type (
 	Labels map[string]string
 )
 
-func NewSvc(fs afero.Fs, wd string) *Svc {
-	return &Svc{appFs: afero.Afero{Fs: fs}, wd: wd}
+func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
+	return &Svc{appFs: afero.Afero{Fs: fs}, wd: wd, log: log}
 }
 
 // Deploys returns configured deploys for a given config path
@@ -82,6 +84,7 @@ func (s Svc) Deploys() (map[string]Deploys, error) {
 				return nil, errors.New("duplicate deploy name found somehow")
 			}
 			deploys[component][k] = v
+			s.log.Debugf("found component: %s for env %s\n", component, k)
 		}
 	}
 

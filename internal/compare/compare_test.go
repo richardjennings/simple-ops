@@ -1,13 +1,14 @@
 package compare
 
 import (
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"gotest.tools/assert"
 	"testing"
 )
 
 func TestSvc_SHA256(t *testing.T) {
-	c := NewSvc(afero.NewMemMapFs())
+	c := NewSvc(afero.NewMemMapFs(), logrus.New())
 	if err := c.AppFs.MkdirAll("test/case/", 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +23,7 @@ func TestSvc_SHA256(t *testing.T) {
 }
 
 func TestSvc_SHA256_invalid_path(t *testing.T) {
-	c := NewSvc(afero.NewMemMapFs())
+	c := NewSvc(afero.NewMemMapFs(), logrus.New())
 	sha, err := c.SHA256("/test")
 	assert.Equal(t, sha, "")
 	assert.Error(t, err, "path: /test not found")

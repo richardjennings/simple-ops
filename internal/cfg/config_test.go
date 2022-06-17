@@ -1,7 +1,8 @@
-package config
+package cfg
 
 import (
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"gotest.tools/assert"
 	"os"
@@ -11,12 +12,12 @@ import (
 )
 
 func TestSvc_Init(t *testing.T) {
-	c := NewSvc(afero.NewMemMapFs(), "/test")
+	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
 	// should be able to init without force in empty directory
 	if err := c.Init(false); err != nil {
 		t.Fatal(err)
 	}
-	c = NewSvc(afero.NewMemMapFs(), "/test")
+	c = NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
 	if err := afero.WriteFile(c.appFs, "/test/file", []byte{}, DefaultConfigFsPerm); err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +32,7 @@ func TestSvc_Init(t *testing.T) {
 func TestSvc_Deploys(t *testing.T) {
 	var err error
 	var p = ConfPath
-	c := NewSvc(afero.NewMemMapFs(), "/test")
+	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
 	var cfgPath = filepath.Join(c.wd, p, "b"+Suffix)
 	yml := []byte(`
 chart: b.tgz
@@ -83,7 +84,7 @@ deploy:
 					"serviceEntry": {
 						"github": {
 							Path:   "test/",
-							Values: map[string]interface{}{"spec": map[string]interface{}{"hosts": []interface{}{string("github.com")}}},
+							Values: map[string]interface{}{"spec": map[string]interface{}{"hosts": []interface{}{"github.com"}}},
 						},
 					},
 				},
@@ -98,7 +99,7 @@ deploy:
 					"serviceEntry": {
 						"github": {
 							Path:   "",
-							Values: map[string]interface{}{"spec": map[string]interface{}{"hosts": []interface{}{string("github.com")}}},
+							Values: map[string]interface{}{"spec": map[string]interface{}{"hosts": []interface{}{"github.com"}}},
 						},
 					},
 				},
@@ -116,7 +117,7 @@ func TestSvc_getConfigPaths(t *testing.T) {
 	var err error
 	var s = string(os.PathSeparator)
 	var p = ConfPath
-	c := NewSvc(afero.NewMemMapFs(), "/test")
+	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
 
 	if err = c.appFs.Mkdir(p, DefaultConfigFsPerm); err != nil {
 		t.Fatal(err)
@@ -150,7 +151,7 @@ func TestSvc_parseConfig(t *testing.T) {
 		// valid content
 		{"b.yaml", "a:\n  b: 1", "", map[string]interface{}{"a": map[string]interface{}{"b": float64(1)}}},
 	} {
-		c := NewSvc(afero.NewMemMapFs(), "/test")
+		c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
 		if err := c.appFs.Mkdir(ConfPath, DefaultConfigFsPerm); err != nil {
 			t.Fatal(err)
 		}
@@ -213,7 +214,7 @@ func TestSvc_buildDeploys_without_values(t *testing.T) {
 
 func TestNewSvc(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	c := NewSvc(fs, "/test")
+	c := NewSvc(fs, "/test", logrus.New())
 	if err := fs.MkdirAll("/test/config/", DefaultConfigDirPerm); err != nil {
 		t.Fatal(err)
 	}

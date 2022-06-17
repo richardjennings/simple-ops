@@ -1,7 +1,8 @@
 package manifest
 
 import (
-	"github.com/richardjennings/simple-ops/pkg/config"
+	"github.com/richardjennings/simple-ops/internal/cfg"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"gotest.tools/assert"
 	"io/ioutil"
@@ -10,20 +11,20 @@ import (
 )
 
 func setupWithTestChart(t *testing.T, fs afero.Fs) {
-	if err := fs.MkdirAll("/test", config.DefaultConfigDirPerm); err != nil {
+	if err := fs.MkdirAll("/test", cfg.DefaultConfigDirPerm); err != nil {
 		t.Fatal(err)
 	}
 	// set up directories
-	if err := fs.MkdirAll("/test/config", config.DefaultConfigDirPerm); err != nil {
+	if err := fs.MkdirAll("/test/config", cfg.DefaultConfigDirPerm); err != nil {
 		t.Fatal(err)
 	}
-	if err := fs.MkdirAll("/test/deploy", config.DefaultConfigDirPerm); err != nil {
+	if err := fs.MkdirAll("/test/deploy", cfg.DefaultConfigDirPerm); err != nil {
 		t.Fatal(err)
 	}
-	if err := fs.MkdirAll("/test/charts", config.DefaultConfigDirPerm); err != nil {
+	if err := fs.MkdirAll("/test/charts", cfg.DefaultConfigDirPerm); err != nil {
 		t.Fatal(err)
 	}
-	if err := fs.MkdirAll("/test/with", config.DefaultConfigDirPerm); err != nil {
+	if err := fs.MkdirAll("/test/with", cfg.DefaultConfigDirPerm); err != nil {
 		t.Fatal(err)
 	}
 	// use tesdata chart
@@ -38,7 +39,7 @@ func setupWithTestChart(t *testing.T, fs afero.Fs) {
 
 func TestSvc_GenerateVerify(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	m := NewSvc(fs, "/test")
+	m := NewSvc(fs, "/test", logrus.New())
 
 	setupWithTestChart(t, fs)
 
@@ -49,10 +50,10 @@ func TestSvc_GenerateVerify(t *testing.T) {
 	if err := afero.WriteFile(fs, "/test/with/thing.yml", []byte(withData), 0755); err != nil {
 		t.Fatal(err)
 	}
-	deploys := config.Deploys{
-		"env": &config.Deploy{
+	deploys := cfg.Deploys{
+		"env": &cfg.Deploy{
 			Chart: "test-0.1.0.tgz",
-			Namespace: config.Namespace{
+			Namespace: cfg.Namespace{
 				Name:   "test",
 				Inject: true,
 				Create: true,
@@ -60,32 +61,32 @@ func TestSvc_GenerateVerify(t *testing.T) {
 			Values: map[string]interface{}{
 				"test": "true",
 			},
-			With: config.Withs{
+			With: cfg.Withs{
 				"file": {
-					"name": config.With{
+					"name": cfg.With{
 						Values: map[string]interface{}{
 							"spec": map[string]interface{}{
 								"a": "b",
 							},
 						},
 					},
-					"before": config.With{
+					"before": cfg.With{
 						Values: map[string]interface{}{},
 					},
-					"path": config.With{
+					"path": cfg.With{
 						Path: "file.yaml",
 					},
 				},
 				"thing": {
-					"aa": config.With{},
-					"a":  config.With{},
+					"aa": cfg.With{},
+					"a":  cfg.With{},
 				},
 			},
 			Name:      "env",
 			Component: "test",
 		},
 	}
-	if err := m.Generate(map[string]config.Deploys{"env": deploys}); err != nil {
+	if err := m.Generate(map[string]cfg.Deploys{"env": deploys}); err != nil {
 		t.Fatal(err)
 	}
 	manifest, err := afero.ReadFile(fs, "/test/deploy/env/test/manifest.yaml")
@@ -131,7 +132,7 @@ metadata:
 `
 	assert.Equal(t, string(manifest), expect)
 
-	valid, err := m.Verify(map[string]config.Deploys{"env": deploys})
+	valid, err := m.Verify(map[string]cfg.Deploys{"env": deploys})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,11 +148,11 @@ metadata:
 
 func TestSvc_generateDeploy(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	m := NewSvc(fs, "/test")
+	m := NewSvc(fs, "/test", logrus.New())
 	m.tmp = "/test"
 
 	setupWithTestChart(t, fs)
-	deploy := &config.Deploy{
+	deploy := &cfg.Deploy{
 		Chart:     "test-0.1.0.tgz",
 		Name:      "env",
 		Component: "test",

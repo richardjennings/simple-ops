@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"github.com/ghodss/yaml"
 	cp "github.com/otiai10/copy"
-	"github.com/richardjennings/simple-ops/pkg/compare"
-	"github.com/richardjennings/simple-ops/pkg/config"
+	"github.com/richardjennings/simple-ops/internal/cfg"
+	"github.com/richardjennings/simple-ops/internal/compare"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
@@ -40,18 +41,19 @@ type (
 		wd     string
 		tmp    string
 		wpaths []string
+		log    *logrus.Logger
 	}
 )
 
 // NewSvc creates a new Manifest Service which transforms
 // deployment config into rendered manifests
-func NewSvc(fs afero.Fs, wd string) *Svc {
+func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
 	cfg := &action.Configuration{}
 	client := action.NewInstall(cfg)
 	client.DryRun = true
 	client.ClientOnly = true
 	client.IncludeCRDs = true
-	return &Svc{appFs: afero.Afero{Fs: fs}, wd: wd, client: client}
+	return &Svc{appFs: afero.Afero{Fs: fs}, wd: wd, client: client, log: log}
 }
 
 // Verify generates manifests in a temporary directory and
@@ -59,7 +61,7 @@ func NewSvc(fs afero.Fs, wd string) *Svc {
 // deploy folder contents. If the sha values do not match,
 // verify return false. It does not currently handle verifying
 // file generated via with => path.
-func (s Svc) Verify(deploys map[string]config.Deploys) (bool, error) {
+func (s Svc) Verify(deploys map[string]cfg.Deploys) (bool, error) {
 	var err error
 	err = s.generate(deploys)
 	if err != nil {
@@ -72,14 +74,14 @@ func (s Svc) Verify(deploys map[string]config.Deploys) (bool, error) {
 	}()
 
 	// do sha comparisons
-	cmp := compare.NewSvc(s.appFs.Fs)
+	cmp := compare.NewSvc(s.appFs.Fs, s.log)
 
-	tmpHash, err := cmp.SHA256(filepath.Join(s.tmp, config.DeployPath))
+	tmpHash, err := cmp.SHA256(filepath.Join(s.tmp, cfg.DeployPath))
 	if err != nil {
 		return false, err
 	}
 
-	depHash, err := cmp.SHA256(filepath.Join(s.wd, config.DeployPath))
+	depHash, err := cmp.SHA256(filepath.Join(s.wd, cfg.DeployPath))
 	if err != nil {
 		return false, err
 	}
@@ -90,7 +92,7 @@ func (s Svc) Verify(deploys map[string]config.Deploys) (bool, error) {
 // Generate generates manifests in a temporary directory and
 // copies the content into the deployment directory if the generation
 // process completes successfully.
-func (s Svc) Generate(deploys map[string]config.Deploys) error {
+func (s Svc) Generate(deploys map[string]cfg.Deploys) error {
 	var err error
 	err = s.generate(deploys)
 	defer func() {
@@ -110,7 +112,7 @@ func (s Svc) Generate(deploys map[string]config.Deploys) error {
 func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig bool) error {
 	c := action.Configuration{}
 	p := action.NewPullWithOpts(action.WithConfig(&c))
-	p.DestDir = s.wd + string(os.PathSeparator) + config.ChartsPath
+	p.DestDir = s.wd + string(os.PathSeparator) + cfg.ChartsPath
 	p.Untar = false
 	p.RepoURL = repoUrl
 	p.Version = version
@@ -119,10 +121,10 @@ func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig boo
 	if err != nil {
 		return err
 	}
-	_ = out // @todo log output
+	s.log.Debugf("helm pull: %s\n", out)
 	if addConfig == true {
 		conf := "chart: " + chartRef + "-" + version + ".tgz"
-		path := s.wd + string(os.PathSeparator) + config.ConfPath + string(os.PathSeparator) + chartRef + ".yml"
+		path := s.wd + string(os.PathSeparator) + cfg.ConfPath + string(os.PathSeparator) + chartRef + ".yml"
 		if err := ioutil.WriteFile(path, []byte(conf), defaultFilePerm); err != nil {
 			return err
 		}
@@ -130,7 +132,7 @@ func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig boo
 	return nil
 }
 
-func (s *Svc) generate(components map[string]config.Deploys) error {
+func (s *Svc) generate(components map[string]cfg.Deploys) error {
 	var err error
 	s.tmp, err = s.appFs.TempDir("", "simple-ops-")
 	if err != nil {
@@ -147,13 +149,14 @@ func (s *Svc) generate(components map[string]config.Deploys) error {
 	return nil
 }
 
-func (s Svc) generateDeploy(deploy *config.Deploy) error {
+func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 	var chrt *chart.Chart
 	var rel *release.Release
 	var err error
 	var t []byte
 	var rendered bytes.Buffer
 
+	s.log.Debugf("generating deploy %s:%s", deploy.Component, deploy.Name)
 	if chrt, err = s.loadChart(deploy); err != nil {
 		return err
 	}
@@ -168,6 +171,7 @@ func (s Svc) generateDeploy(deploy *config.Deploy) error {
 			return err
 		}
 		rendered.Write(t)
+		s.log.Debugf("created namespace manifest for %s:%s", deploy.Component, deploy.Name)
 	}
 	s.client.ReleaseName = deploy.Component
 	s.client.Namespace = deploy.Namespace.Name
@@ -179,6 +183,7 @@ func (s Svc) generateDeploy(deploy *config.Deploy) error {
 		return err
 	}
 	rendered.Write([]byte(rel.Manifest))
+	s.log.Debugf("rendered chart %s.%s for %s:%s", chrt.Name(), chrt.Metadata.Version, deploy.Component, deploy.Name)
 
 	// with
 	if deploy.With != nil {
@@ -213,10 +218,13 @@ func (s Svc) generateDeploy(deploy *config.Deploy) error {
 					rendered.Write([]byte("---\n"))
 					rendered.Write([]byte(fmt.Sprintf("# Source: simple-ops with %s.yml\n", p)))
 					rendered.Write(t)
+					s.log.Debugf("generated with %s type %s for %s:%s", name, p, deploy.Component, deploy.Name)
+
 				} else {
 					if err := s.generateWithToPath(p, with, name); err != nil {
 						return err
 					}
+					s.log.Debugf("generated with %s type %s for %s:%s to path %s", name, p, deploy.Component, deploy.Name, with.Path)
 				}
 			}
 		}
@@ -227,17 +235,23 @@ func (s Svc) generateDeploy(deploy *config.Deploy) error {
 		if t, err = s.injectNamespace(deploy, rendered.Bytes()); err != nil {
 			return err
 		}
+		s.log.Debugf("injected namespace %s", deploy.Namespace.Name)
 	} else {
 		t = rendered.Bytes()
 	}
 
 	// write manifest
-	return s.appFs.WriteFile(s.pathForTmpManifest(deploy), t, defaultFilePerm)
+	path := s.pathForTmpManifest(deploy)
+	if err := s.appFs.WriteFile(path, t, defaultFilePerm); err != nil {
+		return err
+	}
+	s.log.Debugf("wrote manifest to %s", path)
+	return nil
 }
 
 // generateWith uses file named with/{n}.yml as a template rendered
 // using with Values to a byte slice. With Path must be empty
-func (s Svc) generateWith(n string, w config.With, name string) ([]byte, error) {
+func (s Svc) generateWith(n string, w cfg.With, name string) ([]byte, error) {
 	if w.Path != "" {
 		return nil, errors.New("unexpected path")
 	}
@@ -247,7 +261,7 @@ func (s Svc) generateWith(n string, w config.With, name string) ([]byte, error) 
 // gnerateWithPath uses file name with/{n}.yml as a template rendered
 // using with Values to the non-empty path specified relative to the
 // working directory, e.g. apps/n.yaml
-func (s Svc) generateWithToPath(n string, w config.With, name string) error {
+func (s Svc) generateWithToPath(n string, w cfg.With, name string) error {
 	if w.Path == "" {
 		return errors.New("expected path")
 	}
@@ -274,11 +288,11 @@ func (s Svc) generateWithToPath(n string, w config.With, name string) error {
 }
 
 // renderWith uses file at /with/n.yml
-func (s Svc) renderWith(n string, w config.With, name string) ([]byte, error) {
+func (s Svc) renderWith(n string, w cfg.With, name string) ([]byte, error) {
 	var c []byte
 	var v map[string]interface{}
 	var err error
-	path := filepath.Join(s.wd, config.WithPath, n) + config.Suffix
+	path := filepath.Join(s.wd, cfg.WithPath, n) + cfg.Suffix
 	if c, err = s.appFs.ReadFile(path); err != nil {
 		return c, err
 	}
@@ -296,7 +310,7 @@ func (s Svc) renderWith(n string, w config.With, name string) ([]byte, error) {
 	// name overwrites any existing
 	w.Values["metadata"].(map[string]interface{})["name"] = name
 	// merge values from with into v
-	v = config.MergeMaps(v, w.Values)
+	v = cfg.MergeMaps(v, w.Values)
 	// marshal to bytes
 	return yaml.Marshal(v)
 }
@@ -314,7 +328,7 @@ func (s Svc) withPath(path string) (string, error) {
 	return path, nil
 }
 
-func (s Svc) loadChart(deploy *config.Deploy) (*chart.Chart, error) {
+func (s Svc) loadChart(deploy *cfg.Deploy) (*chart.Chart, error) {
 	var chrt *chart.Chart
 	var err error
 
@@ -337,8 +351,7 @@ func (s Svc) loadChart(deploy *config.Deploy) (*chart.Chart, error) {
 		}
 	}
 
-	// check chart dependencies
-	// @todo
+	// @todo check chart dependencies
 	if len(chrt.Dependencies()) != len(chrt.Metadata.Dependencies) {
 		return nil, errors.New("dependencies not installed")
 	}
@@ -346,7 +359,7 @@ func (s Svc) loadChart(deploy *config.Deploy) (*chart.Chart, error) {
 	return chrt, err
 }
 
-func (s Svc) createNamespaceManifest(deploy *config.Deploy) ([]byte, error) {
+func (s Svc) createNamespaceManifest(deploy *cfg.Deploy) ([]byte, error) {
 	ns := &v1.Namespace{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -365,7 +378,7 @@ func (s Svc) createNamespaceManifest(deploy *config.Deploy) ([]byte, error) {
 	return yaml.Marshal(ns)
 }
 
-func (s Svc) injectNamespace(deploy *config.Deploy, manifest []byte) ([]byte, error) {
+func (s Svc) injectNamespace(deploy *cfg.Deploy, manifest []byte) ([]byte, error) {
 	buf := bytes.Buffer{}
 	err := kio.Pipeline{
 		Inputs:  []kio.Reader{&kio.ByteReader{Reader: bytes.NewBuffer(manifest)}},
@@ -376,7 +389,7 @@ func (s Svc) injectNamespace(deploy *config.Deploy, manifest []byte) ([]byte, er
 }
 
 func (s Svc) pathForChart(p string) string {
-	return s.wd + string(os.PathSeparator) + config.ChartsPath + string(os.PathSeparator) + p
+	return s.wd + string(os.PathSeparator) + cfg.ChartsPath + string(os.PathSeparator) + p
 }
 
 // os.Rename does not work if the rename crosses file systems
@@ -385,7 +398,7 @@ func (s Svc) pathForChart(p string) string {
 func (s Svc) renameDirectory(from string, to string) error {
 	switch s.appFs.Fs.(type) {
 	case *afero.OsFs:
-		if err := os.RemoveAll(filepath.Join(to, config.DeployPath)); err != nil {
+		if err := os.RemoveAll(filepath.Join(to, cfg.DeployPath)); err != nil {
 			return err
 		}
 		if err := s.appFs.MkdirAll(to, defaultDirPerm); err != nil {
@@ -417,15 +430,15 @@ func (s Svc) renameDirectory(from string, to string) error {
 	}
 }
 
-func (s Svc) pathForTmpComponent(d *config.Deploy) string {
+func (s Svc) pathForTmpComponent(d *cfg.Deploy) string {
 	return pathForTmpDeploy(d, s.tmp) + string(os.PathSeparator) + d.Component
 }
 
-func pathForTmpDeploy(d *config.Deploy, tmpDir string) string {
-	return tmpDir + string(os.PathSeparator) + config.DeployPath + string(os.PathSeparator) + d.Name
+func pathForTmpDeploy(d *cfg.Deploy, tmpDir string) string {
+	return tmpDir + string(os.PathSeparator) + cfg.DeployPath + string(os.PathSeparator) + d.Name
 }
 
 // /tmp/dir/deploy/prod/component/manifest.yml
-func (s Svc) pathForTmpManifest(d *config.Deploy) string {
+func (s Svc) pathForTmpManifest(d *cfg.Deploy) string {
 	return s.pathForTmpComponent(d) + string(os.PathSeparator) + "manifest.yaml"
 }
