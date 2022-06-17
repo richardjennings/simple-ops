@@ -30,6 +30,7 @@ jobs:
         with:
           context: .
           file: Containerfile
+          build-args: "VERSION=${{ github.ref_name }}"
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: richardjennings/simple-ops:${{ github.ref_name }}
+          tags: richardjennings/simple-ops:${{ github.ref_name }}, richardjennings/simple-ops:latest
