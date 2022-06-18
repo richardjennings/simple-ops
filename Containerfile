@@ -10,7 +10,7 @@ COPY go.mod .
 COPY go.sum .
 RUN go mod download
 COPY . .
-RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -ldflags="-X 'github.com/richardjennings/simple-ops/cmd.Version=${VERSION}'" -o simple-ops main.go
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -ldflags="-s -w -X 'github.com/richardjennings/simple-ops/cmd.Version=${VERSION}'" -o simple-ops main.go
 
 FROM scratch
 COPY --chown=65534:0 --from=builder /build/simple-ops /
