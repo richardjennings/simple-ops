@@ -434,6 +434,10 @@ func (s Svc) renameDirectory(from string, to string) error {
 	}
 }
 
+func (s Svc) ManifestPathForDeploy(d *cfg.Deploy) string {
+	return filepath.Join(s.wd, cfg.DeployPath, d.Name, d.Component, "manifest.yaml")
+}
+
 func (s Svc) pathForTmpComponent(d *cfg.Deploy) string {
 	return pathForTmpDeploy(d, s.tmp) + string(os.PathSeparator) + d.Component
 }

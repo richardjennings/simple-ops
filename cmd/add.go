@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"github.com/richardjennings/simple-ops/internal/manifest"
-	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 )
 
@@ -25,6 +23,6 @@ func init() {
 }
 
 func Add(cmd *cobra.Command, args []string) {
-	s := manifest.NewSvc(afero.NewOsFs(), workdir, log)
-	cobra.CheckErr(s.Pull(args[0], repository, version, addConfig))
+	manifests := newManifestService()
+	cobra.CheckErr(manifests.Pull(args[0], repository, version, addConfig))
 }

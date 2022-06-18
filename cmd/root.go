@@ -1,7 +1,11 @@
 package cmd
 
 import (
+	"github.com/richardjennings/simple-ops/internal/cfg"
+	"github.com/richardjennings/simple-ops/internal/manifest"
+	"github.com/richardjennings/simple-ops/internal/meta/image"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -33,4 +37,16 @@ func initConfig() {
 // Execute executes the root command.
 func Execute() error {
 	return rootCmd.Execute()
+}
+
+func newManifestService() *manifest.Svc {
+	return manifest.NewSvc(afero.NewOsFs(), workdir, log)
+}
+
+func newConfigService() *cfg.Svc {
+	return cfg.NewSvc(afero.NewOsFs(), workdir, log)
+}
+
+func newMetaImageService() *image.Svc {
+	return image.NewSvc(afero.NewOsFs(), workdir, log)
 }

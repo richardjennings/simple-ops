@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"github.com/richardjennings/simple-ops/internal/cfg"
-	"github.com/richardjennings/simple-ops/internal/manifest"
-	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 )
 
@@ -20,9 +18,9 @@ func init() {
 func Generate(cmd *cobra.Command, args []string) {
 	var deploys map[string]cfg.Deploys
 	var err error
-	cfg := cfg.NewSvc(afero.NewOsFs(), workdir, log)
-	gen := manifest.NewSvc(afero.NewOsFs(), workdir, log)
-	deploys, err = cfg.Deploys()
+	config := newConfigService()
+	manifests := newManifestService()
+	deploys, err = config.Deploys()
 	cobra.CheckErr(err)
-	cobra.CheckErr(gen.Generate(deploys))
+	cobra.CheckErr(manifests.Generate(deploys))
 }

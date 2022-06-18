@@ -3,8 +3,6 @@ package cmd
 import (
 	"fmt"
 	"github.com/richardjennings/simple-ops/internal/cfg"
-	"github.com/richardjennings/simple-ops/internal/manifest"
-	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -22,11 +20,11 @@ func init() {
 func Verify(cmd *cobra.Command, args []string) {
 	var deploys map[string]cfg.Deploys
 	var err error
-	cfg := cfg.NewSvc(afero.NewOsFs(), workdir, log)
-	gen := manifest.NewSvc(afero.NewOsFs(), workdir, log)
-	deploys, err = cfg.Deploys()
+	config := newConfigService()
+	manifests := newManifestService()
+	deploys, err = config.Deploys()
 	cobra.CheckErr(err)
-	correct, err := gen.Verify(deploys)
+	correct, err := manifests.Verify(deploys)
 	cobra.CheckErr(err)
 	if !correct {
 		fmt.Println("deploy is not consistent with configuration")
