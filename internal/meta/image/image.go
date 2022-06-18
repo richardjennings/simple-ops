@@ -4,7 +4,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"log"
-	"os"
 	"sigs.k8s.io/kustomize/kyaml/kio"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
@@ -26,9 +25,12 @@ func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
 	return metas
 }
 
-func (m *Svc) ListImages(path string) ([]string, error) {
+// ListImages lists all Images found in resource kinds that support images in the
+// manifest file at filePath
+// @todo CronJob
+func (m *Svc) ListImages(filePath string) ([]string, error) {
 	var images []string
-	file, err := os.Open(path)
+	file, err := m.appFs.Open(filePath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -43,6 +45,8 @@ func (m *Svc) ListImages(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	// kind: Pod
+	images = append(images, m.podImages(nodes)...)
 	// kind: Deployment
 	images = append(images, m.deploymentImages(nodes)...)
 	// kind: DaemonSet
@@ -57,6 +61,19 @@ func (m *Svc) ListImages(path string) ([]string, error) {
 	images = append(images, m.statefulSetImages(nodes)...)
 
 	return images, nil
+}
+
+func (m Svc) podImages(nodes []*yaml.RNode) (images []string) {
+	// containers
+	matcher := yaml.PathMatcher{Path: []string{"spec", "containers", "*", "image"}}
+	images = append(images, match(&matcher, nodes, "Pod")...)
+	// initContainers
+	matcher = yaml.PathMatcher{Path: []string{"spec", "initContainers", "*", "image"}}
+	images = append(images, match(&matcher, nodes, "Pod")...)
+	// ephemeralContainers
+	matcher = yaml.PathMatcher{Path: []string{"spec", "ephemeralContainers", "*", "image"}}
+	images = append(images, match(&matcher, nodes, "Pod")...)
+	return images
 }
 
 func (m Svc) statefulSetImages(nodes []*yaml.RNode) (images []string) {
