@@ -171,3 +171,12 @@ test:
 `
 	assert.Equal(t, string(actual), expected)
 }
+
+func TestSvc_ManifestPathForDeploy(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	m := NewSvc(fs, "/test", logrus.New())
+	deploy := cfg.Deploy{Name: "testenv", Component: "app"}
+	actual := m.ManifestPathForDeploy(&deploy)
+	expected := "/test/deploy/testenv/app/manifest.yaml"
+	assert.Equal(t, expected, actual)
+}

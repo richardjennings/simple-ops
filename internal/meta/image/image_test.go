@@ -183,6 +183,25 @@ spec:
         ports:
         - containerPort: 80
 ---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hello
+spec:
+  schedule: "* * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: hello
+            image: busybox:1.28
+            imagePullPolicy: IfNotPresent
+            command:
+            - /bin/sh
+            - -c
+            - date; echo Hello from the Kubernetes cluster
+          restartPolicy: OnFailure
 `)
 
 func TestSvc_ListImages(t *testing.T) {
@@ -196,6 +215,7 @@ func TestSvc_ListImages(t *testing.T) {
 		t.Error(err)
 	}
 	expected := []string{
+		"busybox:1.28",
 		"nginx:1.14.3",
 		"nginx:1.14.2",
 		"quay.io/fluentd_elasticsearch/fluentd:v2.5.2",

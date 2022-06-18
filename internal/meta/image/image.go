@@ -27,7 +27,6 @@ func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
 
 // ListImages lists all Images found in resource kinds that support images in the
 // manifest file at filePath
-// @todo CronJob
 func (m *Svc) ListImages(filePath string) ([]string, error) {
 	var images []string
 	file, err := m.appFs.Open(filePath)
@@ -45,6 +44,8 @@ func (m *Svc) ListImages(filePath string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	// kind: CronJob
+	images = append(images, m.cronJobImages(nodes)...)
 	// kind: Pod
 	images = append(images, m.podImages(nodes)...)
 	// kind: Deployment
@@ -61,6 +62,19 @@ func (m *Svc) ListImages(filePath string) ([]string, error) {
 	images = append(images, m.statefulSetImages(nodes)...)
 
 	return images, nil
+}
+
+func (m Svc) cronJobImages(nodes []*yaml.RNode) (images []string) {
+	// containers
+	matcher := yaml.PathMatcher{Path: []string{"spec", "jobTemplate", "spec", "template", "spec", "containers", "*", "image"}}
+	images = append(images, match(&matcher, nodes, "CronJob")...)
+	// initContainers
+	matcher = yaml.PathMatcher{Path: []string{"spec", "jobTemplate", "spec", "template", "spec", "initContainers", "*", "image"}}
+	images = append(images, match(&matcher, nodes, "CronJob")...)
+	// ephemeralContainers
+	matcher = yaml.PathMatcher{Path: []string{"spec", "jobTemplate", "spec", "template", "spec", "ephemeralContainers", "*", "image"}}
+	images = append(images, match(&matcher, nodes, "CronJob")...)
+	return images
 }
 
 func (m Svc) podImages(nodes []*yaml.RNode) (images []string) {
