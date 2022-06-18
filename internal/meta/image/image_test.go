@@ -16,7 +16,7 @@ metadata:
 spec:
   containers:
   - name: nginx
-    image: nginx:1.14.3
+    image: nginx:1.14.2
     ports:
     - containerPort: 80
 ---
@@ -204,19 +204,20 @@ spec:
           restartPolicy: OnFailure
 `)
 
-func TestSvc_ListImages(t *testing.T) {
+func TestSvc_ListImages_everyImage(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	if err := afero.WriteFile(fs, "/test/manifest.yaml", manifests, 0777); err != nil {
 		t.Error(err)
 	}
 	images := NewSvc(fs, "/test", logrus.New())
-	actual, err := images.ListImages("/test/manifest.yaml")
+	result, err := images.ListImages("/test/manifest.yaml")
 	if err != nil {
 		t.Error(err)
 	}
+	actual := result.EveryImage()
 	expected := []string{
 		"busybox:1.28",
-		"nginx:1.14.3",
+		"nginx:1.14.2",
 		"nginx:1.14.2",
 		"quay.io/fluentd_elasticsearch/fluentd:v2.5.2",
 		"perl",

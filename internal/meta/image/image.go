@@ -46,7 +46,37 @@ type (
 		wd    string
 		log   *logrus.Logger
 	}
+	Result struct {
+		Kind   string
+		Images []string
+	}
+	Images struct {
+		FilePath string
+		Images   []Result
+	}
 )
+
+func (i Images) EveryImage() []string {
+	var images []string
+	for _, i := range i.Images {
+		images = append(images, i.Images...)
+	}
+	return images
+}
+
+func (i Images) EveryUniqueImage() []string {
+	hm := map[string]struct{}{}
+	var images []string
+	for _, is := range i.Images {
+		for _, ii := range is.Images {
+			if _, ok := hm[ii]; !ok {
+				images = append(images, ii)
+				hm[ii] = struct{}{}
+			}
+		}
+	}
+	return images
+}
 
 func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
 	metas := &Svc{
@@ -59,7 +89,7 @@ func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
 
 // ListImages lists all Images found in resource kinds that support images in the
 // manifest file at filePath
-func (m *Svc) ListImages(filePath string) ([]string, error) {
+func (m *Svc) ListImages(filePath string) (*Images, error) {
 	file, err := m.appFs.Open(filePath)
 	if err != nil {
 		log.Fatal(err)
@@ -75,10 +105,15 @@ func (m *Svc) ListImages(filePath string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return m.images(nodes)
+	imgs, err := m.images(nodes)
+
+	return &Images{
+		FilePath: filePath,
+		Images:   imgs,
+	}, err
 }
 
-func (m Svc) images(nodes []*yaml.RNode) (images []string, err error) {
+func (m Svc) images(nodes []*yaml.RNode) (images []Result, err error) {
 	for _, match := range matchers {
 		kind := match.kind
 		for _, path := range match.paths {
@@ -89,8 +124,15 @@ func (m Svc) images(nodes []*yaml.RNode) (images []string, err error) {
 					if err != nil {
 						return images, err
 					}
-					for m := range matcher.Matches {
-						images = append(images, m.Value)
+					if len(matcher.Matches) > 0 {
+						res := Result{
+							Kind: kind,
+						}
+						for ms := range matcher.Matches {
+							m.log.Debugf("found %s image %s", kind, ms.Value)
+							res.Images = append(res.Images, ms.Value)
+						}
+						images = append(images, res)
 					}
 				}
 			}

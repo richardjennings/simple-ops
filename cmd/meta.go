@@ -10,6 +10,5 @@ var metaCmd = &cobra.Command{
 }
 
 func init() {
-	metaCmd.AddCommand(imageCmd)
 	rootCmd.AddCommand(metaCmd)
 }

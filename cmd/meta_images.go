@@ -1,10 +1,16 @@
 package cmd
 
 import (
+	"encoding/json"
+	"errors"
 	"github.com/ghodss/yaml"
+	"github.com/richardjennings/simple-ops/internal/meta"
 	"github.com/spf13/cobra"
 	"os"
 )
+
+var output outputType = "yaml"
+var format imageListFormatType = "unique"
 
 var imageCmd = &cobra.Command{
 	Use:   "images [subcommand]",
@@ -12,34 +18,62 @@ var imageCmd = &cobra.Command{
 	Run:   images,
 }
 
-type listResult map[string]map[string][]string
-
-func images(cmd *cobra.Command, args []string) {
-	config := newConfigService()
-	manifests := newManifestService()
-	alldeploys, err := config.Deploys()
-	cobra.CheckErr(err)
-	img := newMetaImageService()
-	result := make(listResult)
-
-	for _, deploys := range alldeploys {
-		for _, deploy := range deploys {
-			path := manifests.ManifestPathForDeploy(deploy)
-			if _, ok := result[deploy.Name]; !ok {
-				result[deploy.Name] = make(map[string][]string)
-			}
-			result[deploy.Name][deploy.Component], err = img.ListImages(path)
-		}
-	}
-	err = asYaml(result)
-	cobra.CheckErr(err)
+func init() {
+	imageCmd.PersistentFlags().Var(&format, "format", "format [unique, uniquePerFile]")
+	metaCmd.AddCommand(imageCmd)
 }
 
-func asYaml(l listResult) error {
-	var data []byte
+func images(_ *cobra.Command, _ []string) {
+	config := newConfigService()
+	manifests := newManifestService()
+	img := newMetaImageService()
+	metas := meta.NewSvc(config, manifests, img)
+	var res interface{}
 	var err error
-	data, err = yaml.Marshal(l)
+	switch format {
+	case "unique":
+		res, err = metas.ListImagesUnique()
+	case "uniquePerFile":
+		res, err = metas.ListImagesUniquePerFile()
+	}
+	cobra.CheckErr(err)
+	switch output {
+	case "yaml":
+		cobra.CheckErr(asYaml(res))
+	case "json":
+		cobra.CheckErr(asJson(res))
+	}
+}
+
+func asYaml(l interface{}) error {
+	data, err := yaml.Marshal(l)
 	cobra.CheckErr(err)
 	_, err = os.Stdout.Write(data)
 	return err
+}
+
+func asJson(l interface{}) error {
+	data, err := json.Marshal(l)
+	data = append(data, '\n')
+	cobra.CheckErr(err)
+	_, err = os.Stdout.Write(data)
+	return err
+}
+
+type imageListFormatType string
+
+func (o *imageListFormatType) String() string {
+	return string(*o)
+}
+func (o *imageListFormatType) Set(v string) error {
+	switch v {
+	case "unique", "uniquePerFile":
+		*o = imageListFormatType(v)
+	default:
+		return errors.New("supported output types are [yaml, json]")
+	}
+	return nil
+}
+func (o *imageListFormatType) Type() string {
+	return "outputType"
 }
