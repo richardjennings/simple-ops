@@ -1,7 +1,7 @@
 # Simple-Ops
 [![Go Documentation](https://godocs.io/github.com/richardjennings/simple-ops/pkg/config?status.svg)](https://godocs.io/github.com/richardjennings/simple-ops/pkg/config)
 [![codecov](https://codecov.io/gh/richardjennings/simple-ops/branch/main/graph/badge.svg?token=TLYP6632YV)](https://codecov.io/gh/richardjennings/simple-ops)
-![example branch parameter](https://github.com/richardjennings/simple-ops/actions/workflows/codecov.yml/badge.svg?branch=main)
+![example branch parameter](https://github.com/richardjennings/simple-ops/actions/workflows/test-coverage.yml/badge.svg?branch=main)
 
 Simple-Ops is a GitOps repository management tool designed to leverage:
 
