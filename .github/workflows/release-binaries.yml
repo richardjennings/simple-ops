@@ -1,0 +1,31 @@
+name: Release Binaries
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  releases-matrix:
+    name: Release Go Binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run tests
+        run: go test ./...
+      - uses: wangyoucao577/go-release-action@v1.29
+        with:
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          goversion: "1.18.2"
+          project_path: "."
+          binary_name: "simple-ops"
+          pre_command: "go mod download"
+          build_command: "go build"
+          ldflags: '-s -w -X "github.com/richardjennings/simple-ops/cmd.Version=${{ github.ref_name }}"'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          sha256sum: true
+          md5sum: false
