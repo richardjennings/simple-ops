@@ -177,7 +177,7 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 		rendered.Write(t)
 		s.log.Debugf("created namespace manifest for %s:%s", deploy.Component, deploy.Name)
 	}
-	s.client.ReleaseName = deploy.Component
+	s.client.ReleaseName = chrt.Name()
 	s.client.Namespace = deploy.Namespace.Name
 	s.client.CreateNamespace = false
 
