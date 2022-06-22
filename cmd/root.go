@@ -11,6 +11,7 @@ import (
 	"os"
 )
 
+var output outputType = "yaml"
 var verbosity string
 var workdir string
 

@@ -9,12 +9,11 @@ import (
 	"os"
 )
 
-var output outputType = "yaml"
 var format imageListFormatType = "unique"
 
 var imageCmd = &cobra.Command{
 	Use:   "images [subcommand]",
-	Short: "retrieve meta information from configurations and dependencies",
+	Short: "list images in manifests",
 	Run:   images,
 }
 

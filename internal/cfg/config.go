@@ -57,6 +57,14 @@ type (
 	Labels map[string]string
 )
 
+func (d Deploy) RelativeManifestPath() string {
+	return filepath.Join(DeployPath, d.Name, d.Component, "manifest.yaml")
+}
+
+func (d Deploy) RelativeChartPath() string {
+	return filepath.Join(ChartsPath, d.Chart)
+}
+
 func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
 	return &Svc{appFs: afero.Afero{Fs: fs}, wd: wd, log: log}
 }
