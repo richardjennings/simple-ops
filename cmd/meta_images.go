@@ -1,12 +1,9 @@
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
-	"github.com/ghodss/yaml"
 	"github.com/richardjennings/simple-ops/internal/meta"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 var format imageListFormatType = "unique"
@@ -14,7 +11,7 @@ var format imageListFormatType = "unique"
 var imageCmd = &cobra.Command{
 	Use:   "images [subcommand]",
 	Short: "list images in manifests",
-	Run:   images,
+	RunE:  images,
 }
 
 func init() {
@@ -22,11 +19,11 @@ func init() {
 	metaCmd.AddCommand(imageCmd)
 }
 
-func images(_ *cobra.Command, _ []string) {
+func images(_ *cobra.Command, _ []string) error {
 	config := newConfigService()
 	manifests := newManifestService()
-	img := newMetaImageService()
-	metas := meta.NewSvc(config, manifests, img)
+	match := newMatcherService()
+	metas := meta.NewSvc(config, manifests, match)
 	var res interface{}
 	var err error
 	switch format {
@@ -36,27 +33,7 @@ func images(_ *cobra.Command, _ []string) {
 		res, err = metas.ListImagesUniquePerFile()
 	}
 	cobra.CheckErr(err)
-	switch output {
-	case "yaml":
-		cobra.CheckErr(asYaml(res))
-	case "json":
-		cobra.CheckErr(asJson(res))
-	}
-}
-
-func asYaml(l interface{}) error {
-	data, err := yaml.Marshal(l)
-	cobra.CheckErr(err)
-	_, err = os.Stdout.Write(data)
-	return err
-}
-
-func asJson(l interface{}) error {
-	data, err := json.Marshal(l)
-	data = append(data, '\n')
-	cobra.CheckErr(err)
-	_, err = os.Stdout.Write(data)
-	return err
+	return response(res)
 }
 
 type imageListFormatType string

@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/ghodss/yaml"
 	"github.com/richardjennings/simple-ops/internal/cfg"
 	"github.com/richardjennings/simple-ops/internal/manifest"
-	"github.com/richardjennings/simple-ops/internal/meta/image"
+	"github.com/richardjennings/simple-ops/internal/manifest/matcher"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -68,6 +71,32 @@ func newConfigService() *cfg.Svc {
 	return cfg.NewSvc(afero.NewOsFs(), workdir, log)
 }
 
-func newMetaImageService() *image.Svc {
-	return image.NewSvc(afero.NewOsFs(), workdir, log)
+func newMatcherService() *matcher.Svc {
+	return matcher.NewSvc(afero.NewOsFs(), workdir, log)
+}
+
+func response(l interface{}) error {
+	switch output {
+	case "yaml":
+		return asYaml(l)
+	case "json":
+		return asJson(l)
+	default:
+		return fmt.Errorf("output type %s not recognised", output)
+	}
+}
+
+func asYaml(l interface{}) error {
+	data, err := yaml.Marshal(l)
+	cobra.CheckErr(err)
+	_, err = os.Stdout.Write(data)
+	return err
+}
+
+func asJson(l interface{}) error {
+	data, err := json.Marshal(l)
+	data = append(data, '\n')
+	cobra.CheckErr(err)
+	_, err = os.Stdout.Write(data)
+	return err
 }

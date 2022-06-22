@@ -57,14 +57,6 @@ type (
 	Labels map[string]string
 )
 
-func (d Deploy) RelativeManifestPath() string {
-	return filepath.Join(DeployPath, d.Name, d.Component, "manifest.yaml")
-}
-
-func (d Deploy) RelativeChartPath() string {
-	return filepath.Join(ChartsPath, d.Chart)
-}
-
 func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
 	return &Svc{appFs: afero.Afero{Fs: fs}, wd: wd, log: log}
 }
@@ -97,6 +89,36 @@ func (s Svc) Deploys() (map[string]Deploys, error) {
 	}
 
 	return deploys, nil
+}
+
+func (s Svc) GetDeploy(component string, environment string) (*Deploy, error) {
+	var deploy *Deploy
+	deps, err := s.Deploys()
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := deps[component]; !ok {
+		return nil, fmt.Errorf("component %s not found", component)
+	}
+	dep := deps[component]
+	for _, d := range dep {
+		if d.Name == environment {
+			deploy = d
+		}
+	}
+	if deploy == nil {
+		return nil, fmt.Errorf("environment %s not found", environment)
+	}
+
+	return deploy, nil
+}
+
+func (s Svc) ManifestPath(d Deploy) (string, error) {
+	return filepath.Abs(filepath.Join(s.wd, DeployPath, d.Name, d.Component, "manifest.yaml"))
+}
+
+func (s Svc) ChartPath(d Deploy) (string, error) {
+	return filepath.Abs(filepath.Join(s.wd, ChartsPath, d.Chart))
 }
 
 // Init creates simple-ops directory and structure in path if

@@ -1,4 +1,4 @@
-package image
+package matcher
 
 import (
 	"github.com/sirupsen/logrus"
@@ -180,6 +180,12 @@ spec:
       containers:
       - name: nginx
         image: nginx
+        resources:
+          limits:
+            memory: 20Mi
+          requests:
+            cpu: 10m
+            memory: 10Mi
         ports:
         - containerPort: 80
 ---
@@ -209,12 +215,11 @@ func TestSvc_ListImages_everyImage(t *testing.T) {
 	if err := afero.WriteFile(fs, "/test/manifest.yaml", manifests, 0777); err != nil {
 		t.Error(err)
 	}
-	images := NewSvc(fs, "/test", logrus.New())
-	result, err := images.ListImages("/test/manifest.yaml")
+	matches := NewSvc(fs, "/test", logrus.New())
+	actual, err := matches.Images("/test/manifest.yaml")
 	if err != nil {
 		t.Error(err)
 	}
-	actual := result.EveryImage()
 	expected := []string{
 		"busybox:1.28",
 		"nginx:1.14.2",
@@ -224,6 +229,35 @@ func TestSvc_ListImages_everyImage(t *testing.T) {
 		"gcr.io/google_samples/gb-frontend:v3",
 		"nginx",
 		"k8s.gcr.io/nginx-slim:0.8",
+	}
+	assert.DeepEqual(t, expected, actual)
+}
+
+func TestSvc_ListResources(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	if err := afero.WriteFile(fs, "/test/manifest.yaml", manifests, 0777); err != nil {
+		t.Error(err)
+	}
+	matches := NewSvc(fs, "/test", logrus.New())
+	actual, err := matches.Resources("/test/manifest.yaml")
+	if err != nil {
+		t.Error(err)
+	}
+	expected := Resources{
+		{ParentName: "hello", ParentType: "CronJob", Name: "hello"},
+		{ParentName: "nginx", ParentType: "Pod", Name: "nginx"},
+		{ParentName: "nginx-deployment", ParentType: "Deployment", Name: "nginx"},
+		{ParentName: "fluentd-elasticsearch", ParentType: "DaemonSet", Name: "fluentd-elasticsearch", Resource: &Resource{
+			Limits:   Conf{Memory: "200Mi", CPU: ""},
+			Requests: Conf{Memory: "200Mi", CPU: "100m"},
+		}},
+		{ParentName: "pi", ParentType: "Job", Name: "pi"},
+		{ParentName: "frontend", ParentType: "ReplicaSet", Name: "php-redis"},
+		{ParentName: "nginx", ParentType: "ReplicationController", Name: "nginx", Resource: &Resource{
+			Limits:   Conf{Memory: "20Mi", CPU: ""},
+			Requests: Conf{Memory: "10Mi", CPU: "10m"},
+		}},
+		{ParentName: "web", ParentType: "StatefulSet", Name: "nginx"},
 	}
 	assert.DeepEqual(t, expected, actual)
 }
