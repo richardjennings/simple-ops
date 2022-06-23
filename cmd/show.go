@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/richardjennings/simple-ops/internal/cfg"
 	"github.com/richardjennings/simple-ops/internal/meta/show"
 	"github.com/spf13/cobra"
 )
@@ -16,15 +17,20 @@ var showCmd = &cobra.Command{
 }
 
 func init() {
-	showCmd.PersistentFlags().Var(&showType, "type", "show [values, ...]")
 	rootCmd.AddCommand(showCmd)
 }
 
 func showFn(_ *cobra.Command, args []string) error {
-	compName := args[0]
-	envName := args[1]
+	if err := showType.Set(args[0]); err != nil {
+		return err
+	}
+	env, comp, err := cfg.DeployIdParts(args[1])
+	if err != nil {
+		return err
+	}
+
 	config := newConfigService()
-	deploy, err := config.GetDeploy(compName, envName)
+	deploy, err := config.GetDeploy(comp, env)
 	if err != nil {
 		return err
 	}
