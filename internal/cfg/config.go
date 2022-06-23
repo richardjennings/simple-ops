@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/afero"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -29,13 +30,13 @@ type (
 		log   *logrus.Logger
 	}
 	Deploy struct {
-		Namespace Namespace              `json:"namespace"`
-		Chart     string                 `json:"chart"`
-		Disabled  bool                   `json:"enabled"`
-		With      Withs                  `json:"with"`
-		Values    map[string]interface{} `json:"values"`
-		Name      string                 `json:"-"`
-		Component string                 `json:"-"`
+		Namespace   Namespace              `json:"namespace"`
+		Chart       string                 `json:"chart"`
+		Disabled    bool                   `json:"enabled"`
+		With        Withs                  `json:"with"`
+		Values      map[string]interface{} `json:"values"`
+		Environment string                 `json:"-"`
+		Component   string                 `json:"-"`
 	}
 	Conf struct {
 		Deploy
@@ -47,14 +48,15 @@ type (
 		Values map[string]interface{} `json:"values"`
 	}
 	// Deploys is a container for different Deployments of a component
-	Deploys   map[string]*Deploy
+	Deploys   []*Deploy
 	Namespace struct {
 		Name   string `json:"name"`
 		Create bool   `json:"create"`
 		Inject bool   `json:"inject"`
 		Labels Labels `json:"Labels"`
 	}
-	Labels map[string]string
+	Labels         map[string]string
+	wrappedDeploys map[string]*Deploy
 )
 
 func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
@@ -62,8 +64,8 @@ func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
 }
 
 // Deploys returns configured deploys for a given config path
-func (s Svc) Deploys() (map[string]Deploys, error) {
-	deploys := make(map[string]Deploys)
+func (s Svc) Deploys() (Deploys, error) {
+	var deploys []*Deploy
 	paths, err := s.getConfigPaths()
 	if err != nil {
 		return nil, err
@@ -78,43 +80,28 @@ func (s Svc) Deploys() (map[string]Deploys, error) {
 		if err != nil {
 			return nil, err
 		}
-		deploys[component] = make(Deploys)
-		for k, v := range d {
-			if _, ok := deploys[component][k]; ok {
-				return nil, errors.New("duplicate deploy name found somehow")
-			}
-			deploys[component][k] = v
-			s.log.Debugf("found component: %s for env %s\n", component, k)
-		}
+		deploys = append(deploys, d...)
 	}
 
 	return deploys, nil
 }
 
 func (s Svc) GetDeploy(component string, environment string) (*Deploy, error) {
-	var deploy *Deploy
 	deps, err := s.Deploys()
 	if err != nil {
 		return nil, err
 	}
-	if _, ok := deps[component]; !ok {
-		return nil, fmt.Errorf("component %s not found", component)
-	}
-	dep := deps[component]
-	for _, d := range dep {
-		if d.Name == environment {
-			deploy = d
+	for _, d := range deps {
+		if d.Environment == environment && d.Component == component {
+			return d, nil
 		}
 	}
-	if deploy == nil {
-		return nil, fmt.Errorf("environment %s not found", environment)
-	}
 
-	return deploy, nil
+	return nil, fmt.Errorf("deploy %s.%s not found", environment, component)
 }
 
 func (s Svc) ManifestPath(d Deploy) (string, error) {
-	return filepath.Abs(filepath.Join(s.wd, DeployPath, d.Name, d.Component, "manifest.yaml"))
+	return filepath.Abs(filepath.Join(s.wd, DeployPath, d.Environment, d.Component, "manifest.yaml"))
 }
 
 func (s Svc) ChartPath(d Deploy) (string, error) {
@@ -271,6 +258,9 @@ func buildDeploys(m map[string]interface{}, component string) (Deploys, error) {
 		}
 	}
 
+	// do not need deploys to be merged
+	// into child deploys
+	delete(m, "deploy")
 	// merge
 	for k, _ := range ds {
 		ds[k] = MergeMaps(m, ds[k])
@@ -283,20 +273,33 @@ func buildDeploys(m map[string]interface{}, component string) (Deploys, error) {
 	}
 
 	// and then as Deploys
-	var deploys Deploys
-	if err := yaml.Unmarshal(yml, &deploys); err != nil {
+	var wrappedDeploys wrappedDeploys
+	if err := yaml.Unmarshal(yml, &wrappedDeploys); err != nil {
 		return nil, err
 	}
 
-	// update name and component
-	for name, deploy := range deploys {
-		deploy.Name = name
+	var deploys Deploys
+
+	// ensure output order
+	var order []string
+	for env, _ := range wrappedDeploys {
+		order = append(order, env)
+		sort.Strings(order)
+	}
+	for _, env := range order {
+		deploy := wrappedDeploys[env]
+		deploy.Environment = env
 		deploy.Component = component
+		deploys = append(deploys, deploy)
 	}
 
 	return deploys, nil
 }
 
+func environmentName(p string) string {
+	parts := strings.Split(p, string(os.PathSeparator))
+	return parts[len(parts)-2]
+}
 func componentName(p string) string {
 	parts := strings.Split(p, string(os.PathSeparator))
 	return strings.TrimSuffix(parts[len(parts)-1], Suffix)
@@ -350,4 +353,16 @@ func setType(p string) interface{} {
 		// or map
 		return make(map[string]interface{})
 	}
+}
+
+func (d Deploy) Id() string {
+	return fmt.Sprintf("%s.%s", d.Environment, d.Component)
+}
+
+func DeployIdParts(id string) (string, string, error) {
+	parts := strings.Split(id, ".")
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("invalid %s", id)
+	}
+	return parts[0], parts[1], nil
 }

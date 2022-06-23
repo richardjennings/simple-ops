@@ -15,8 +15,8 @@ func init() {
 	rootCmd.AddCommand(generateCmd)
 }
 
-func Generate(cmd *cobra.Command, args []string) {
-	var deploys map[string]cfg.Deploys
+func Generate(_ *cobra.Command, _ []string) {
+	var deploys cfg.Deploys
 	var err error
 	config := newConfigService()
 	manifests := newManifestService()

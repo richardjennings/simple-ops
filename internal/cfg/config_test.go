@@ -72,35 +72,33 @@ deploy:
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := map[string]Deploys{
-		"b": {
-			"test": {
-				Chart:     "b.tgz",
-				Name:      "test",
-				Component: "b",
-				Namespace: Namespace{Name: "test", Create: true, Inject: false},
-				Values:    map[string]interface{}{"more": false},
-				With: map[string]map[string]With{
-					"serviceEntry": {
-						"github": {
-							Path:   "test/",
-							Values: map[string]interface{}{"spec": map[string]interface{}{"hosts": []interface{}{"github.com"}}},
-						},
+	expected := Deploys{
+		{
+			Chart:       "b.tgz",
+			Environment: "test",
+			Component:   "b",
+			Namespace:   Namespace{Name: "test", Create: true, Inject: false},
+			Values:      map[string]interface{}{"more": false},
+			With: map[string]map[string]With{
+				"serviceEntry": {
+					"github": {
+						Path:   "test/",
+						Values: map[string]interface{}{"spec": map[string]interface{}{"hosts": []interface{}{"github.com"}}},
 					},
 				},
 			},
-			"test2": {
-				Chart:     "b.tgz",
-				Name:      "test2",
-				Component: "b",
-				Namespace: Namespace{Name: "test", Create: true, Inject: true},
-				Values:    map[string]interface{}{"more": true},
-				With: map[string]map[string]With{
-					"serviceEntry": {
-						"github": {
-							Path:   "",
-							Values: map[string]interface{}{"spec": map[string]interface{}{"hosts": []interface{}{"github.com"}}},
-						},
+		},
+		{
+			Chart:       "b.tgz",
+			Environment: "test2",
+			Component:   "b",
+			Namespace:   Namespace{Name: "test", Create: true, Inject: true},
+			Values:      map[string]interface{}{"more": true},
+			With: map[string]map[string]With{
+				"serviceEntry": {
+					"github": {
+						Path:   "",
+						Values: map[string]interface{}{"spec": map[string]interface{}{"hosts": []interface{}{"github.com"}}},
 					},
 				},
 			},
@@ -191,7 +189,7 @@ func TestSvc_buildDeploys(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	expected := Deploys{"test": &Deploy{Values: map[string]interface{}{"overridesTrue": "false"}, Component: "test", Name: "test"}}
+	expected := Deploys{&Deploy{Values: map[string]interface{}{"overridesTrue": "false"}, Component: "test", Environment: "test"}}
 	assert.DeepEqual(t, expected, actual)
 }
 
@@ -208,7 +206,7 @@ func TestSvc_buildDeploys_without_values(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	expected := Deploys{"test": &Deploy{Values: nil, Component: "test", Name: "test"}}
+	expected := Deploys{&Deploy{Values: nil, Component: "test", Environment: "test"}}
 	assert.DeepEqual(t, expected, actual)
 }
 

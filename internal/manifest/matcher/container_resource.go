@@ -35,26 +35,26 @@ var ResourceMatchers = []Matcher{
 }
 
 type (
-	ResourceResult struct {
+	ContainerResourceResult struct {
 		ParentName string
 		ParentType string
 		Name       string
-		Resource   *Resource `json:",omitempty"`
+		Resource   *ContainerResource `json:",omitempty"`
 	}
 	Conf struct {
 		Memory string `json:",omitempty"`
 		CPU    string `json:",omitempty"`
 	}
-	Resource struct {
+	ContainerResource struct {
 		Limits   Conf
 		Requests Conf
 	}
-	Resources []ResourceResult
+	ContainerResources []ContainerResourceResult
 )
 
-// Resources lists resources configuration in the manifest at filePath
-func (m Svc) Resources(filePath string) (Resources, error) {
-	var result Resources
+// ContainerResources lists resources configuration in the manifest at filePath
+func (m Svc) ContainerResources(filePath string) (ContainerResources, error) {
+	var result ContainerResources
 
 	matches, err := m.Match(filePath, ResourceMatchers)
 	if err != nil {
@@ -62,11 +62,11 @@ func (m Svc) Resources(filePath string) (Resources, error) {
 	}
 
 	for _, match := range matches {
-		res := ResourceResult{
+		res := ContainerResourceResult{
 			ParentType: match.Resource.GetKind(),
 			ParentName: match.Resource.GetName(),
 		}
-		var resource Resource
+		var resource ContainerResource
 		if err := match.Node.VisitElements(func(node *yaml.RNode) error {
 			if name := node.Field("name"); name != nil {
 				n, err := name.Value.String()

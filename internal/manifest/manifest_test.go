@@ -51,7 +51,7 @@ func TestSvc_GenerateVerify(t *testing.T) {
 		t.Fatal(err)
 	}
 	deploys := cfg.Deploys{
-		"env": &cfg.Deploy{
+		&cfg.Deploy{
 			Chart: "test-0.1.0.tgz",
 			Namespace: cfg.Namespace{
 				Name:   "test",
@@ -82,11 +82,11 @@ func TestSvc_GenerateVerify(t *testing.T) {
 					"a":  cfg.With{},
 				},
 			},
-			Name:      "env",
-			Component: "test",
+			Environment: "env",
+			Component:   "test",
 		},
 	}
-	if err := m.Generate(map[string]cfg.Deploys{"env": deploys}); err != nil {
+	if err := m.Generate(deploys); err != nil {
 		t.Fatal(err)
 	}
 	manifest, err := afero.ReadFile(fs, "/test/deploy/env/test/manifest.yaml")
@@ -132,7 +132,7 @@ metadata:
 `
 	assert.Equal(t, string(manifest), expect)
 
-	valid, err := m.Verify(map[string]cfg.Deploys{"env": deploys})
+	valid, err := m.Verify(deploys)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,9 +153,9 @@ func TestSvc_generateDeploy(t *testing.T) {
 
 	setupWithTestChart(t, fs)
 	deploy := &cfg.Deploy{
-		Chart:     "test-0.1.0.tgz",
-		Name:      "env",
-		Component: "test",
+		Chart:       "test-0.1.0.tgz",
+		Environment: "env",
+		Component:   "test",
 	}
 	err := m.generateDeploy(deploy)
 	if err != nil {
@@ -175,7 +175,7 @@ test:
 func TestSvc_ManifestPathForDeploy(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	m := NewSvc(fs, "/test", logrus.New())
-	deploy := cfg.Deploy{Name: "testenv", Component: "app"}
+	deploy := cfg.Deploy{Environment: "testenv", Component: "app"}
 	actual := m.ManifestPathForDeploy(&deploy)
 	expected := "/test/deploy/testenv/app/manifest.yaml"
 	assert.Equal(t, expected, actual)

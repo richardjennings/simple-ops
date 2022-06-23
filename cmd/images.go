@@ -2,36 +2,53 @@ package cmd
 
 import (
 	"errors"
+	"github.com/richardjennings/simple-ops/internal/cfg"
 	"github.com/richardjennings/simple-ops/internal/meta"
 	"github.com/spf13/cobra"
 )
 
-var format imageListFormatType = "unique"
-
 var imageCmd = &cobra.Command{
 	Use:   "images [subcommand]",
 	Short: "list images in manifests",
-	RunE:  images,
+	Args:  cobra.RangeArgs(0, 1),
+	RunE:  imagesFn,
 }
 
 func init() {
-	imageCmd.PersistentFlags().Var(&format, "format", "format [unique, uniquePerFile]")
-	metaCmd.AddCommand(imageCmd)
+	rootCmd.AddCommand(imageCmd)
 }
 
-func images(_ *cobra.Command, _ []string) error {
+func imagesFn(_ *cobra.Command, args []string) error {
+	if len(args) == 1 {
+		env, comp, err := cfg.DeployIdParts(args[0])
+		if err != nil {
+			return err
+		}
+		return imagesForDeploy(env, comp)
+	}
+	return images()
+}
+
+func imagesForDeploy(environment string, component string) error {
 	config := newConfigService()
 	manifests := newManifestService()
 	match := newMatcherService()
 	metas := meta.NewSvc(config, manifests, match)
 	var res interface{}
 	var err error
-	switch format {
-	case "unique":
-		res, err = metas.ListImagesUnique()
-	case "uniquePerFile":
-		res, err = metas.ListImagesUniquePerFile()
-	}
+	res, err = metas.ListUniqueImagesForDeploy(environment, component)
+	cobra.CheckErr(err)
+	return response(res)
+}
+
+func images() error {
+	config := newConfigService()
+	manifests := newManifestService()
+	match := newMatcherService()
+	metas := meta.NewSvc(config, manifests, match)
+	var res interface{}
+	var err error
+	res, err = metas.ListAllImagesUnique()
 	cobra.CheckErr(err)
 	return response(res)
 }

@@ -61,7 +61,7 @@ func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
 // deploy folder contents. If the sha values do not match,
 // verify return false. It does not currently handle verifying
 // file generated via with => path.
-func (s Svc) Verify(deploys map[string]cfg.Deploys) (bool, error) {
+func (s Svc) Verify(deploys cfg.Deploys) (bool, error) {
 	var err error
 	err = s.generate(deploys)
 	if err != nil {
@@ -92,7 +92,7 @@ func (s Svc) Verify(deploys map[string]cfg.Deploys) (bool, error) {
 // Generate generates manifests in a temporary directory and
 // copies the content into the deployment directory if the generation
 // process completes successfully.
-func (s Svc) Generate(deploys map[string]cfg.Deploys) error {
+func (s Svc) Generate(deploys cfg.Deploys) error {
 	var err error
 	err = s.generate(deploys)
 	defer func() {
@@ -136,17 +136,15 @@ func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig boo
 	return nil
 }
 
-func (s *Svc) generate(components map[string]cfg.Deploys) error {
+func (s *Svc) generate(deploys cfg.Deploys) error {
 	var err error
 	s.tmp, err = s.appFs.TempDir("", "simple-ops-")
 	if err != nil {
 		return err
 	}
-	for _, deploys := range components {
-		for _, deploy := range deploys {
-			if err := s.generateDeploy(deploy); err != nil {
-				return err
-			}
+	for _, deploy := range deploys {
+		if err := s.generateDeploy(deploy); err != nil {
+			return err
 		}
 	}
 
@@ -160,7 +158,7 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 	var t []byte
 	var rendered bytes.Buffer
 
-	s.log.Debugf("generating deploy %s:%s", deploy.Component, deploy.Name)
+	s.log.Debugf("generating deploy %s:%s", deploy.Component, deploy.Environment)
 	if chrt, err = s.loadChart(deploy); err != nil {
 		return err
 	}
@@ -175,7 +173,7 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 			return err
 		}
 		rendered.Write(t)
-		s.log.Debugf("created namespace manifest for %s:%s", deploy.Component, deploy.Name)
+		s.log.Debugf("created namespace manifest for %s:%s", deploy.Component, deploy.Environment)
 	}
 	s.client.ReleaseName = chrt.Name()
 	s.client.Namespace = deploy.Namespace.Name
@@ -187,7 +185,7 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 		return err
 	}
 	rendered.Write([]byte(rel.Manifest))
-	s.log.Debugf("rendered chart %s.%s for %s:%s", chrt.Name(), chrt.Metadata.Version, deploy.Component, deploy.Name)
+	s.log.Debugf("rendered chart %s.%s for %s:%s", chrt.Name(), chrt.Metadata.Version, deploy.Component, deploy.Environment)
 
 	// with
 	if deploy.With != nil {
@@ -222,13 +220,13 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 					rendered.Write([]byte("---\n"))
 					rendered.Write([]byte(fmt.Sprintf("# Source: simple-ops with %s.yml\n", p)))
 					rendered.Write(t)
-					s.log.Debugf("generated with %s type %s for %s:%s", name, p, deploy.Component, deploy.Name)
+					s.log.Debugf("generated with %s type %s for %s:%s", name, p, deploy.Component, deploy.Environment)
 
 				} else {
 					if err := s.generateWithToPath(p, with, name); err != nil {
 						return err
 					}
-					s.log.Debugf("generated with %s type %s for %s:%s to path %s", name, p, deploy.Component, deploy.Name, with.Path)
+					s.log.Debugf("generated with %s type %s for %s:%s to path %s", name, p, deploy.Component, deploy.Environment, with.Path)
 				}
 			}
 		}
@@ -435,7 +433,7 @@ func (s Svc) renameDirectory(from string, to string) error {
 }
 
 func (s Svc) ManifestPathForDeploy(d *cfg.Deploy) string {
-	return filepath.Join(s.wd, cfg.DeployPath, d.Name, d.Component, "manifest.yaml")
+	return filepath.Join(s.wd, cfg.DeployPath, d.Environment, d.Component, "manifest.yaml")
 }
 
 func (s Svc) pathForTmpComponent(d *cfg.Deploy) string {
@@ -443,7 +441,7 @@ func (s Svc) pathForTmpComponent(d *cfg.Deploy) string {
 }
 
 func pathForTmpDeploy(d *cfg.Deploy, tmpDir string) string {
-	return tmpDir + string(os.PathSeparator) + cfg.DeployPath + string(os.PathSeparator) + d.Name
+	return tmpDir + string(os.PathSeparator) + cfg.DeployPath + string(os.PathSeparator) + d.Environment
 }
 
 // /tmp/dir/deploy/prod/component/manifest.yml

@@ -18,7 +18,7 @@ func init() {
 }
 
 func Verify(cmd *cobra.Command, args []string) {
-	var deploys map[string]cfg.Deploys
+	var deploys cfg.Deploys
 	var err error
 	config := newConfigService()
 	manifests := newManifestService()

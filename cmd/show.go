@@ -9,15 +9,15 @@ import (
 var showType show.Type = "values"
 
 var showCmd = &cobra.Command{
-	Use:   "show [component] [deploy]",
-	Short: "show details from a deploy configuration helm chart",
+	Use:   "show <type> <environment.component>",
+	Short: "show details from a deploy config helm chart",
 	RunE:  showFn,
 	Args:  cobra.ExactArgs(2),
 }
 
 func init() {
 	showCmd.PersistentFlags().Var(&showType, "type", "show [values, ...]")
-	metaCmd.AddCommand(showCmd)
+	rootCmd.AddCommand(showCmd)
 }
 
 func showFn(_ *cobra.Command, args []string) error {
