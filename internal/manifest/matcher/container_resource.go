@@ -36,18 +36,18 @@ var ResourceMatchers = []Matcher{
 
 type (
 	ContainerResourceResult struct {
-		ParentName string
-		ParentType string
-		Name       string
-		Resource   *ContainerResource `json:",omitempty"`
+		ParentName string            `json:"parentName"`
+		ParentType string            `json:"parentType"`
+		Name       string            `json:"name"`
+		Resource   ContainerResource `json:"resources,omitempty"`
 	}
 	Conf struct {
-		Memory string `json:",omitempty"`
-		CPU    string `json:",omitempty"`
+		Memory string `json:"memory,omitempty"`
+		CPU    string `json:"cpu,omitempty"`
 	}
 	ContainerResource struct {
-		Limits   Conf
-		Requests Conf
+		Limits   Conf `json:"limits"`
+		Requests Conf `json:"requests"`
 	}
 	ContainerResources []ContainerResourceResult
 )
@@ -80,7 +80,7 @@ func (m Svc) ContainerResources(filePath string) (ContainerResources, error) {
 				if err = r.Value.YNode().Decode(&resource); err != nil {
 					return err
 				}
-				res.Resource = &resource
+				res.Resource = resource
 			}
 			return nil
 		}); err != nil {

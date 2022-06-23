@@ -247,13 +247,13 @@ func TestSvc_ListResources(t *testing.T) {
 		{ParentName: "hello", ParentType: "CronJob", Name: "hello"},
 		{ParentName: "nginx", ParentType: "Pod", Name: "nginx"},
 		{ParentName: "nginx-deployment", ParentType: "Deployment", Name: "nginx"},
-		{ParentName: "fluentd-elasticsearch", ParentType: "DaemonSet", Name: "fluentd-elasticsearch", Resource: &ContainerResource{
+		{ParentName: "fluentd-elasticsearch", ParentType: "DaemonSet", Name: "fluentd-elasticsearch", Resource: ContainerResource{
 			Limits:   Conf{Memory: "200Mi", CPU: ""},
 			Requests: Conf{Memory: "200Mi", CPU: "100m"},
 		}},
 		{ParentName: "pi", ParentType: "Job", Name: "pi"},
 		{ParentName: "frontend", ParentType: "ReplicaSet", Name: "php-redis"},
-		{ParentName: "nginx", ParentType: "ReplicationController", Name: "nginx", Resource: &ContainerResource{
+		{ParentName: "nginx", ParentType: "ReplicationController", Name: "nginx", Resource: ContainerResource{
 			Limits:   Conf{Memory: "20Mi", CPU: ""},
 			Requests: Conf{Memory: "10Mi", CPU: "10m"},
 		}},
