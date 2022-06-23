@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"github.com/richardjennings/simple-ops/internal/cfg"
-	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 )
 
@@ -20,6 +18,6 @@ func init() {
 }
 
 func Init(cmd *cobra.Command, args []string) {
-	c := cfg.NewSvc(afero.NewOsFs(), workdir, log)
-	cobra.CheckErr(c.Init(force))
+	config := newConfigService()
+	cobra.CheckErr(config.Init(force))
 }

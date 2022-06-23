@@ -1,11 +1,20 @@
 package cmd
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"github.com/ghodss/yaml"
+	"github.com/richardjennings/simple-ops/internal/cfg"
+	"github.com/richardjennings/simple-ops/internal/manifest"
+	"github.com/richardjennings/simple-ops/internal/manifest/matcher"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"os"
 )
 
+var output outputType = "yaml"
 var verbosity string
 var workdir string
 
@@ -16,8 +25,27 @@ var rootCmd = &cobra.Command{
 
 var log = logrus.New()
 
+type outputType string
+
+func (o *outputType) String() string {
+	return string(*o)
+}
+func (o *outputType) Set(v string) error {
+	switch v {
+	case "yaml", "json":
+		*o = outputType(v)
+	default:
+		return errors.New("supported output types are [yaml, json]")
+	}
+	return nil
+}
+func (o *outputType) Type() string {
+	return "outputType"
+}
+
 func init() {
 	cobra.OnInitialize(initConfig)
+	imageCmd.PersistentFlags().Var(&output, "output", "output [yaml, json]")
 	rootCmd.PersistentFlags().StringVarP(&verbosity, "verbosity", "v", logrus.ErrorLevel.String(), "")
 	rootCmd.PersistentFlags().StringVarP(&workdir, "workdir", "w", ".", "")
 }
@@ -33,4 +61,42 @@ func initConfig() {
 // Execute executes the root command.
 func Execute() error {
 	return rootCmd.Execute()
+}
+
+func newManifestService() *manifest.Svc {
+	return manifest.NewSvc(afero.NewOsFs(), workdir, log)
+}
+
+func newConfigService() *cfg.Svc {
+	return cfg.NewSvc(afero.NewOsFs(), workdir, log)
+}
+
+func newMatcherService() *matcher.Svc {
+	return matcher.NewSvc(afero.NewOsFs(), workdir, log)
+}
+
+func response(l interface{}) error {
+	switch output {
+	case "yaml":
+		return asYaml(l)
+	case "json":
+		return asJson(l)
+	default:
+		return fmt.Errorf("output type %s not recognised", output)
+	}
+}
+
+func asYaml(l interface{}) error {
+	data, err := yaml.Marshal(l)
+	cobra.CheckErr(err)
+	_, err = os.Stdout.Write(data)
+	return err
+}
+
+func asJson(l interface{}) error {
+	data, err := json.Marshal(l)
+	data = append(data, '\n')
+	cobra.CheckErr(err)
+	_, err = os.Stdout.Write(data)
+	return err
 }
