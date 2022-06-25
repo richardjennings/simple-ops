@@ -16,9 +16,9 @@ pre-receive hook that gives confidence in the correctness of manifests.
 Simple-Ops promotes the use of charts vendored in the repository as tgz files and does not support fetching remote charts at 
 run-time. This 'vendoring' further improves reliability and resilience aiming to make the [Generate command](#Generate) a pure function.
 
-Simple-Ops leverages a composition pattern to make decorating charts with ancillaries such as Argo-CD Application manifests,
-SealedSecrets, Istio configuration, and any other K8s manifests configuration driven using templating and optionally bespoke
-directory paths for manifest output.
+Simple-Ops leverages a composition pattern to make decorating charts with ancillary K8s manifests such as
+SealedSecrets config driven using templating. Optionally decorating manifests can be written to a path outside ```./deploy/``` 
+for example ```./apps/``` for Argo-CD Applications.
 
 Simple-Ops wraps functionality from Helm v3 and Kustomize providing an opinionated workflow whilst remaining compatible with
 other tools.
@@ -144,6 +144,80 @@ deploy:
 ```
 results in 2 deploys, the first named ```test.component``` overrides the component.yml namespace name value with test2.
 The second deploy is staging.component and inherits the component.yml namespace name.
+
+## With
+With components are yaml manifests. A with component can have values changed when used in a deploy config. For example:
+```yaml
+# application.yml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    directory:
+      recurse: true
+    repoURL: ssh://git@github.com/richardjennings/simple-ops-example.git
+    targetRevision: HEAD
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+```
+
+```yaml
+# config/crossplane.yaml
+deploy:
+   example:
+      with:
+         application:
+            crossplane:
+               path: apps/example/crossplane.yaml
+               values:
+                  spec:
+                     source:
+                        path: deploy/example/crossplane/
+```
+
+The deployment generates a ```kind: Application``` manifest with at ./apps/example/crossplane.yaml where spec.source.path
+is changes (added) to ```deploy/example/crossplane/```
+
+If path is not specified the generated with manfiest is bundled with any helm template generated manifests into 
+```deploy/environment/component/manifest.yaml```. For example:
+
+```yaml
+# with/sealed-secret.yml
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+spec:
+```
+
+```yaml
+# deploy/argo-cd.yml
+chart: argo-cd-4.6.2.tgz
+deploy:
+   example:
+      values:
+      with:
+        sealed-secrets:
+          argocd-repo-github:
+            values:
+               spec:
+                  encryptedData:
+                     name: AgBifiAijX0iZMK...
+                     url: AgAEW+jbQNenKpqo...
+                  template:
+                     metadata:
+                        labels:
+                           argocd.argoproj.io/secret-type: repository
+```
+creates a sealed secrets manifest called argocd-repo-github appended ```./deploy/example/argo-cd/manifest.yaml```
 
 
 ## Key tenants
