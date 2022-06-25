@@ -32,37 +32,6 @@ For an example use of Simple-Ops to manage a GitOps repository see [Simple Ops E
 
 Simple-Ops can be used via a GitHub Actions implementation at [https://github.com/richardjennings/simple-ops-action](https://github.com/richardjennings/simple-ops-action)
 
-## Configuration
-
-Configuration is available globally via simple-ops.yml, on a component basis by top level keys in config/component.yml
-and per environment by configuration keys within environment configuration. For example:
-```yaml
-# simple-ops.yml
-namespace:
-  name: default
-  create: false
-  inject: true
-```
-```yaml
-# config/sealed-secrets.yml
-chart: sealed-secrets-2.1.8.tgz
-namespace:
-  name:   sealed-secrets 
-  create: true
-  inject: true
-deploy:
-  local:
-    namespace:
-      name: kube-system
-  staging:
-    namespace:
-      name: sealed-secrets
-      create: true
-```
-renders the sealed-secrets-2.1.8.tgz chart to both deploy/local/sealed-secrets/manifests.yaml and deploy/staging/sealed-secrets/manifests.yaml, 
-both with a namespace resource defined with name kube-system and sealed-secrets respectively, and the namespace configuration
-injected into all relevant resources via a kustomize filter.
-
 ## Usage
 
 ### Add
@@ -104,10 +73,54 @@ previously generated output. The resolution is to ensure chart templates are ide
 
 
 
-## Configuration Anatomy
+## Configuration
+
+Configuration is available globally via simple-ops.yml, on a component basis by top level keys in config/component.yml
+and per environment by configuration keys within environment configuration. For example:
+```yaml
+# simple-ops.yml
+namespace:
+  name: default
+  create: false
+  inject: true
+```
+```yaml
+# config/sealed-secrets.yml
+chart: sealed-secrets-2.1.8.tgz
+namespace:
+  name: sealed-secrets 
+deploy:
+  local:
+    namespace:
+      name: kube-system
+  staging:
+    chart: sealed-secrets-2.1.7.tgz
+    namespace:
+      create: true
+```
+
+will result in the following deploy configurations:
+```yaml
+# local.sealed-secrets
+chart: sealed-secrets-2.1.8.tgz
+namespace:
+  name: kube-system
+  create: false
+  inject: true
+```
+
+```yaml
+# staging.sealed-secrets
+chart: sealed-secrets-2.1.7.tgz
+namespace:
+  name: sealed-secrets
+  create: true
+  inject: true
+```
+
 
 The components of configuration are:
-```
+```yaml
 chart: <string> # filename or directory name in charts/
 namespace: <map>
    name: <string> # name of namespace
@@ -127,23 +140,10 @@ deploy: <map> # deploy specifies the per environment configuration for a compone
    environment-name: <config> # the configuration is identical to the parent sans deploy
 ```
 
-The global config ```simple-ops.yml``` is merged with the component config. Any defaults specified in globally can
+The global config ```simple-ops.yml``` is merged with the component config. Any defaults specified globally can
 be overriden on a component level.
 Deploy configurations are pulled from the component configuration and have the component
-configuration merged into them. For example:
-```yaml
-# component.yml
-namespsace:
-   name: test
-deploy:
-   test:
-      namespace: test2
-      values:
-   staging:
-      values:   
-```
-results in 2 deploys, the first named ```test.component``` overrides the component.yml namespace name value with test2.
-The second deploy is staging.component and inherits the component.yml namespace name.
+configuration merged into them.
 
 ## With
 With components are yaml manifests. A with component can have values changed when used in a deploy config. For example:
@@ -184,10 +184,10 @@ deploy:
                         path: deploy/example/crossplane/
 ```
 
-The deployment generates a ```kind: Application``` manifest with at ./apps/example/crossplane.yaml where spec.source.path
+The deployment generates a ```kind: Application``` manifest at ./apps/example/crossplane.yaml where spec.source.path
 is changes (added) to ```deploy/example/crossplane/```
 
-If path is not specified the generated with manfiest is bundled with any helm template generated manifests into 
+If path is not specified the generated With manifest is bundled with any helm generated manifests into 
 ```deploy/environment/component/manifest.yaml```. For example:
 
 ```yaml
@@ -217,7 +217,7 @@ deploy:
                         labels:
                            argocd.argoproj.io/secret-type: repository
 ```
-creates a sealed secrets manifest called argocd-repo-github appended ```./deploy/example/argo-cd/manifest.yaml```
+creates a sealed secrets manifest called argocd-repo-github appended to ```./deploy/example/argo-cd/manifest.yaml```
 
 
 ## Key tenants
