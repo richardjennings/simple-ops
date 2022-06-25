@@ -23,8 +23,8 @@ func Init(cmd *cobra.Command, args []string) {
 }
 
 var configTemplate = `
-# paths used for labels and if the path should be created for a resource
-# if it does not already exist.
+# fsslice.labels configures the kustomizable field paths in k8s API resources applicable to labels, 
+# optionally creating field paths in resources if they do not exist.
 fsslice:
   labels:
     - path: metadata/labels
@@ -32,6 +32,7 @@ fsslice:
     - path: spec/template/metadata/labels
       create: false
 
+# apply this label to all resources matched by fsslice.labels
 labels:
   "app.kubernetes.io/managed-by": "simple-ops"
 `
