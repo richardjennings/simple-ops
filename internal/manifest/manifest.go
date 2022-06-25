@@ -16,7 +16,6 @@ import (
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/release"
 	"io/fs"
-	"io/ioutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"path/filepath"
 	"sigs.k8s.io/kustomize/api/filters/labels"
@@ -112,13 +111,10 @@ func (s Svc) Generate(deploys cfg.Deploys) error {
 // Pull adds a tgz chart to charts from repoUrl with chartRef and version
 // addConfig generates a config stub for the chart
 func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig bool) error {
-	c := action.Configuration{}
-	p := action.NewPullWithOpts(action.WithConfig(&c))
-	p.DestDir = s.wd + string(os.PathSeparator) + cfg.ChartsPath
-	p.Untar = false
-	p.RepoURL = repoUrl
-	p.Version = version
-	p.Settings = &cli.EnvSettings{}
+	p, err := s.pull(repoUrl, version)
+	if err != nil {
+		return err
+	}
 	out, err := p.Run(chartRef)
 	if err != nil {
 		return err
@@ -127,10 +123,26 @@ func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig boo
 		s.log.Debugf("helm pull: %s\n", out)
 	}
 	s.log.Debugf("saved chart %s-%s.tgz to %s", chartRef, version, p.DestDir)
+	return s.pullAddConfig(addConfig, chartRef, version)
+
+}
+
+func (s Svc) pull(repoUrl string, version string) (*action.Pull, error) {
+	c := action.Configuration{}
+	p := action.NewPullWithOpts(action.WithConfig(&c))
+	p.DestDir = s.wd + string(os.PathSeparator) + cfg.ChartsPath
+	p.Untar = false
+	p.RepoURL = repoUrl
+	p.Version = version
+	p.Settings = &cli.EnvSettings{}
+	return p, nil
+}
+
+func (s Svc) pullAddConfig(addConfig bool, chartRef string, version string) error {
 	if addConfig == true {
 		conf := "chart: " + chartRef + "-" + version + ".tgz"
-		path := s.wd + string(os.PathSeparator) + cfg.ConfPath + string(os.PathSeparator) + chartRef + ".yml"
-		if err := ioutil.WriteFile(path, []byte(conf), defaultFilePerm); err != nil {
+		path := filepath.Join(s.wd, cfg.ConfPath, chartRef+cfg.Suffix)
+		if err := s.appFs.WriteFile(path, []byte(conf), defaultFilePerm); err != nil {
 			return err
 		}
 		s.log.Debugf("added config file for chart %s-%s.tgz", chartRef, version)

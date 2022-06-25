@@ -176,3 +176,34 @@ func TestSvc_ManifestPathForDeploy(t *testing.T) {
 	expected := "/test/deploy/testenv/app/manifest.yaml"
 	assert.Equal(t, expected, actual)
 }
+
+func TestSvc_Pull_Invalid(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	m := NewSvc(fs, "/test", logrus.New())
+	err := m.Pull("a", "b", "c", false)
+	assert.ErrorContains(t, err, "could not find protocol handler for: ")
+}
+
+func TestSvc_pull(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	m := NewSvc(fs, "/test", logrus.New())
+	p, err := m.pull("b", "c")
+	if err != nil {
+		t.Error(err)
+	}
+	assert.Equal(t, p.DestDir, "/test/charts")
+	assert.Equal(t, p.Untar, false)
+	assert.Equal(t, p.RepoURL, "b")
+	assert.Equal(t, p.Version, "c")
+}
+
+func TestSvc_pullAddConfig(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	m := NewSvc(fs, "/test", logrus.New())
+	if err := m.pullAddConfig(true, "a", "b"); err != nil {
+		t.Error(err)
+	}
+	b, err := afero.ReadFile(fs, "/test/config/a.yml")
+	assert.NilError(t, err)
+	assert.Equal(t, string(b), `chart: a-b.tgz`)
+}

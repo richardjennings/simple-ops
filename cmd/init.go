@@ -33,6 +33,5 @@ fsslice:
       create: false
 
 labels:
-  "app.kubernetes.io/managed-by": "simple-ops",
-
+  "app.kubernetes.io/managed-by": "simple-ops"
 `
