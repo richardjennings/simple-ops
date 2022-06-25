@@ -90,17 +90,60 @@ would add or update the imgSrc value passed to Helm rendering to some value. Thi
 components in a deployment pipeline to construct a unified deployment PR.
 
 ### Show
-Show is wrapper around ```helm show``` based on Simple-Ops deployments. For example: ```simple-ops show values production.myapp```
+Show is a wrapper around ```helm show``` based on Simple-Ops deployments. For example: ```simple-ops show values production.myapp```
 would show the helm chart values associated with the production environment myapp component chart.
 
 ### <a id="Verify"></a> Verify
 Verify runs Generate but does not update the deployment directory with any changes. It performs a comparison using
 SHA256 and reports if the `/tmp/deploy` directory content matches ```/my/project/deploy``` content.
 
-### Note
+#### Note
 Some charts may dynamically generate random data in rendered chart templates. For example Redis creates a random password
 secret by default. This will result in ```simple-ops verify``` failing as the generated output does not exactly match the
 previously generated output. The resolution is to ensure chart templates are idempotent by handling such cases explicitly.
+
+
+
+## Configuration Anatomy
+
+The components of configuration are:
+```
+chart: <string> # filename or directory name in charts/
+namespace: <map>
+   name: <string> # name of namespace
+   create: <bool> # generate a namespace manifest or not
+   injecct: <bool> # inject namespace config into resources (after helm templating)
+labels: <map>
+   key: value # label name to label value map
+disabled: <bool> # disable the configuration
+with: <map> # ad-hoc templates
+   template: <map> # the name sans .yml in /with/
+      path: <string> # optionally render manifest to file relative to project e.g. ./apps/myapp.yaml
+      values: <map> # values merged into with template yaml configuration
+         example: value
+values: <map> values to pass to Helm templating
+fsslice: <map> configuration of kustomize filterspec's
+deploy: <map> # deploy specifies the per environment configuration for a component
+   environment-name: <config> # the configuration is identical to the parent sans deploy
+```
+
+The global config ```simple-ops.yml``` is merged with the component config. Any defaults specified in globally can
+be overriden on a component level.
+Deploy configurations are pulled from the component configuration and have the component
+configuration merged into them. For example:
+```yaml
+# component.yml
+namespsace:
+   name: test
+deploy:
+   test:
+      namespace: test2
+      values:
+   staging:
+      values:   
+```
+results in 2 deploys, the first named ```test.component``` overrides the component.yml namespace name value with test2.
+The second deploy is staging.component and inherits the component.yml namespace name.
 
 
 ## Key tenants
@@ -108,8 +151,6 @@ previously generated output. The resolution is to ensure chart templates are ide
 * Local and complete dependencies for reliability and resilience.
 * Composition for extensibility.
 * Narrow scope for compatability with a large range of usage patterns.
-
-
 
 
 ## GitOps Principles

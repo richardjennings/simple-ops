@@ -35,7 +35,7 @@ type (
 		Namespace   Namespace                    `json:"namespace"`
 		Labels      map[string]string            `json:"labels"`
 		Chart       string                       `json:"chart"`
-		Disabled    bool                         `json:"enabled"`
+		Disabled    bool                         `json:"disabled"`
 		With        Withs                        `json:"with"`
 		Values      map[string]interface{}       `json:"values"`
 		Environment string                       `json:"-"`
