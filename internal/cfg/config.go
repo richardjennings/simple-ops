@@ -317,10 +317,6 @@ func buildDeploys(m map[string]interface{}, component string) (Deploys, error) {
 	return deploys, nil
 }
 
-func environmentName(p string) string {
-	parts := strings.Split(p, string(os.PathSeparator))
-	return parts[len(parts)-2]
-}
 func componentName(p string) string {
 	parts := strings.Split(p, string(os.PathSeparator))
 	return strings.TrimSuffix(parts[len(parts)-1], Suffix)
@@ -380,6 +376,7 @@ func (d Deploy) Id() string {
 	return fmt.Sprintf("%s.%s", d.Environment, d.Component)
 }
 
+// DeployIdParts returns "environment.component" or error
 func DeployIdParts(id string) (string, string, error) {
 	parts := strings.Split(id, ".")
 	if len(parts) != 2 {

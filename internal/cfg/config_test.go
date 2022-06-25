@@ -281,6 +281,53 @@ func TestSvc_SetNewListMapString(t *testing.T) {
 	assert.Equal(t, expected, string(actual))
 }
 
+func TestSvc_GetDeploy_None(t *testing.T) {
+	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
+	if err := c.appFs.Mkdir("/test/config", DefaultConfigFsPerm); err != nil {
+		t.Error(err)
+	}
+	if err := afero.WriteFile(c.appFs, "/test/simple-ops.yml", []byte(""), DefaultConfigFsPerm); err != nil {
+		t.Fatal(err)
+	}
+	d, err := c.GetDeploy("a", "b")
+	assert.Assert(t, d == nil)
+	assert.ErrorContains(t, err, "deploy b.a not found")
+}
+
+func TestSvc_GetDeploy_Exists(t *testing.T) {
+	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
+	if err := c.appFs.Mkdir("/test/config", DefaultConfigFsPerm); err != nil {
+		t.Error(err)
+	}
+	if err := afero.WriteFile(c.appFs, "/test/simple-ops.yml", []byte(""), DefaultConfigFsPerm); err != nil {
+		t.Fatal(err)
+	}
+	if err := afero.WriteFile(c.appFs, "/test/config/a.yml", []byte("deploy:\n  b:\n    enabled: false\n"), DefaultConfigFsPerm); err != nil {
+		t.Fatal(err)
+	}
+	d, err := c.GetDeploy("a", "b")
+	assert.Assert(t, d != nil)
+	assert.NilError(t, err)
+	assert.Equal(t, d.Environment, "b")
+	assert.Equal(t, d.Component, "a")
+}
+
+func TestSvc_ManifestPath(t *testing.T) {
+	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
+	d := Deploy{Environment: "a", Component: "b"}
+	s, err := c.ManifestPath(d)
+	assert.NilError(t, err)
+	assert.Equal(t, s, "/test/deploy/a/b/manifest.yaml")
+}
+
+func TestSvc_ChartPath(t *testing.T) {
+	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
+	d := Deploy{Chart: "a.b.tgz"}
+	s, err := c.ChartPath(d)
+	assert.NilError(t, err)
+	assert.Equal(t, s, "/test/charts/a.b.tgz")
+}
+
 func TestNewSvc(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	c := NewSvc(fs, "/test", logrus.New())
@@ -321,4 +368,22 @@ func Test_componentName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_DeployIdParts(t *testing.T) {
+	e, c, err := DeployIdParts("a.b")
+	assert.NilError(t, err)
+	assert.Equal(t, e, "a")
+	assert.Equal(t, c, "b")
+}
+func Test_DeployIdParts_Invalid(t *testing.T) {
+	e, c, err := DeployIdParts("a.b.c")
+	assert.ErrorContains(t, err, "invalid a.b.c")
+	assert.Equal(t, e, "")
+	assert.Equal(t, c, "")
+}
+
+func Test_Deploy_Id(t *testing.T) {
+	d := Deploy{Environment: "a", Component: "b"}
+	assert.Equal(t, d.Id(), "a.b")
 }
