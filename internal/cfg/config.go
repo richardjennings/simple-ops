@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/afero"
 	"os"
 	"path/filepath"
+	"sigs.k8s.io/kustomize/api/types"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,6 +22,7 @@ const (
 	DefaultConfigFsPerm  = 0655
 	DefaultConfigDirPerm = 0755
 	Suffix               = ".yml"
+	GlobalConfigFile     = "simple-ops.yml"
 )
 
 type (
@@ -30,13 +32,15 @@ type (
 		log   *logrus.Logger
 	}
 	Deploy struct {
-		Namespace   Namespace              `json:"namespace"`
-		Chart       string                 `json:"chart"`
-		Disabled    bool                   `json:"enabled"`
-		With        Withs                  `json:"with"`
-		Values      map[string]interface{} `json:"values"`
-		Environment string                 `json:"-"`
-		Component   string                 `json:"-"`
+		Namespace   Namespace                    `json:"namespace"`
+		Labels      map[string]string            `json:"labels"`
+		Chart       string                       `json:"chart"`
+		Disabled    bool                         `json:"enabled"`
+		With        Withs                        `json:"with"`
+		Values      map[string]interface{}       `json:"values"`
+		Environment string                       `json:"-"`
+		Component   string                       `json:"-"`
+		FsSlice     map[string][]types.FieldSpec `json:"fsslice"`
 	}
 	Conf struct {
 		Deploy
@@ -70,11 +74,17 @@ func (s Svc) Deploys() (Deploys, error) {
 	if err != nil {
 		return nil, err
 	}
+	globalCfg, err := s.getGlobalConfig()
+	if err != nil {
+		return nil, err
+	}
 	for _, path := range paths {
 		m, err := s.parseConfig(path)
 		if err != nil {
 			return nil, err
 		}
+		// merge global config
+		m = MergeMaps(globalCfg, m)
 		component := componentName(path)
 		d, err := buildDeploys(m, component)
 		if err != nil {
@@ -111,7 +121,7 @@ func (s Svc) ChartPath(d Deploy) (string, error) {
 // Init creates simple-ops directory and structure in path if
 // directory not exists or empty.
 // force generates directory structure when path not empty
-func (s Svc) Init(force bool) error {
+func (s Svc) Init(force bool, template string) error {
 	path := s.wd
 	f, err := s.appFs.ReadDir(path)
 	if err != nil && !os.IsNotExist(err) {
@@ -120,20 +130,19 @@ func (s Svc) Init(force bool) error {
 	if len(f) > 0 && force == false {
 		return fmt.Errorf("path %s not empty", path)
 	}
-	prefix := path + string(os.PathSeparator)
-	if err := s.appFs.MkdirAll(prefix+ConfPath, DefaultConfigDirPerm); err != nil {
+	if err := s.appFs.MkdirAll(filepath.Join(path, ConfPath), DefaultConfigDirPerm); err != nil {
 		return err
 	}
-	if err := s.appFs.MkdirAll(prefix+DeployPath, DefaultConfigDirPerm); err != nil {
+	if err := s.appFs.MkdirAll(filepath.Join(path, DeployPath), DefaultConfigDirPerm); err != nil {
 		return err
 	}
-	if err := s.appFs.MkdirAll(prefix+ChartsPath, DefaultConfigDirPerm); err != nil {
+	if err := s.appFs.MkdirAll(filepath.Join(path, ChartsPath), DefaultConfigDirPerm); err != nil {
 		return err
 	}
-	if err := s.appFs.MkdirAll(prefix+WithPath, DefaultConfigDirPerm); err != nil {
+	if err := s.appFs.MkdirAll(filepath.Join(path, WithPath), DefaultConfigDirPerm); err != nil {
 		return err
 	}
-	if err := s.appFs.WriteFile(prefix+"simple-ops.yml", []byte{}, DefaultConfigFsPerm); err != nil {
+	if err := s.appFs.WriteFile(filepath.Join(path, GlobalConfigFile), []byte(template), DefaultConfigFsPerm); err != nil {
 		return err
 	}
 	return nil
@@ -170,6 +179,18 @@ func (s Svc) Set(path string, value string) error {
 	c, err := yaml.Marshal(conf)
 
 	return s.appFs.WriteFile(configFile, c, DefaultConfigFsPerm)
+}
+
+func (s Svc) getGlobalConfig() (map[string]interface{}, error) {
+	b, err := s.appFs.ReadFile(filepath.Join(s.wd, GlobalConfigFile))
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]interface{})
+	if err := yaml.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // getConfigPaths produces a list of config files found
@@ -296,10 +317,6 @@ func buildDeploys(m map[string]interface{}, component string) (Deploys, error) {
 	return deploys, nil
 }
 
-func environmentName(p string) string {
-	parts := strings.Split(p, string(os.PathSeparator))
-	return parts[len(parts)-2]
-}
 func componentName(p string) string {
 	parts := strings.Split(p, string(os.PathSeparator))
 	return strings.TrimSuffix(parts[len(parts)-1], Suffix)
@@ -359,6 +376,7 @@ func (d Deploy) Id() string {
 	return fmt.Sprintf("%s.%s", d.Environment, d.Component)
 }
 
+// DeployIdParts returns "environment.component" or error
 func DeployIdParts(id string) (string, string, error) {
 	parts := strings.Split(id, ".")
 	if len(parts) != 2 {

@@ -122,3 +122,9 @@ Flags:
 Use "simple-ops [command] --help" for more information about a command.
 ```
 
+
+## Verify
+
+Some charts may dynamically generate random data in rendered chart templates. For example Redis creates a random password
+secret by default. This will result in ```simple-ops verify``` failing as the generated output does not exactly match the 
+previously generated output. The resolution is to ensure chart templates are idempotent by handling such cases explicitly.
