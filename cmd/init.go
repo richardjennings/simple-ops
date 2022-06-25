@@ -19,5 +19,20 @@ func init() {
 
 func Init(cmd *cobra.Command, args []string) {
 	config := newConfigService()
-	cobra.CheckErr(config.Init(force))
+	cobra.CheckErr(config.Init(force, configTemplate))
 }
+
+var configTemplate = `
+# paths used for labels and if the path should be created for a resource
+# if it does not already exist.
+fsslice:
+  labels:
+    - path: metadata/labels
+      create: true
+    - path: spec/template/metadata/labels
+      create: false
+
+labels:
+  "app.kubernetes.io/managed-by": "simple-ops",
+
+`

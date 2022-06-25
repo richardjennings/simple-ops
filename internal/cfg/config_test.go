@@ -14,7 +14,7 @@ import (
 func TestSvc_Init(t *testing.T) {
 	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
 	// should be able to init without force in empty directory
-	if err := c.Init(false); err != nil {
+	if err := c.Init(false, ""); err != nil {
 		t.Fatal(err)
 	}
 	c = NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
@@ -22,10 +22,10 @@ func TestSvc_Init(t *testing.T) {
 		t.Fatal(err)
 	}
 	// should Not be able to init without force in Non empty directory
-	actual := c.Init(false)
+	actual := c.Init(false, "")
 	assert.Equal(t, actual.Error(), fmt.Errorf("path %s not empty", "/test").Error())
 	// should be able to init with force in Non empty directory
-	actual = c.Init(true)
+	actual = c.Init(true, "")
 	assert.NilError(t, actual)
 }
 
@@ -66,6 +66,9 @@ deploy:
         github:
 `)
 	if err = afero.WriteFile(c.appFs, cfgPath, yml, DefaultConfigFsPerm); err != nil {
+		t.Fatal(err)
+	}
+	if err = afero.WriteFile(c.appFs, filepath.Join(c.wd, GlobalConfigFile), []byte(""), DefaultConfigFsPerm); err != nil {
 		t.Fatal(err)
 	}
 	actual, err := c.Deploys()

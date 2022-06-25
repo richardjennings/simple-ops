@@ -96,12 +96,9 @@ func TestSvc_GenerateVerify(t *testing.T) {
 	expect := `apiVersion: v1
 kind: Namespace
 metadata:
-  creationTimestamp: null
   labels:
     name: test
   name: test
-spec: {}
-status: {}
 ---
 # Source: test/templates/test.yaml
 test: true
@@ -165,8 +162,7 @@ func TestSvc_generateDeploy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := `---
-# Source: test/templates/test.yaml
+	expected := `# Source: test/templates/test.yaml
 test:
 `
 	assert.Equal(t, string(actual), expected)

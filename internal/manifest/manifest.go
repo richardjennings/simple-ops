@@ -17,9 +17,9 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"io/fs"
 	"io/ioutil"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"path/filepath"
+	"sigs.k8s.io/kustomize/api/filters/labels"
 	"sigs.k8s.io/kustomize/api/filters/namespace"
 	"sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/kio"
@@ -48,8 +48,8 @@ type (
 // NewSvc creates a new Manifest Service which transforms
 // deployment config into rendered manifests
 func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
-	cfg := &action.Configuration{}
-	client := action.NewInstall(cfg)
+	config := &action.Configuration{}
+	client := action.NewInstall(config)
 	client.DryRun = true
 	client.ClientOnly = true
 	client.IncludeCRDs = true
@@ -104,6 +104,8 @@ func (s Svc) Generate(deploys cfg.Deploys) error {
 		return err
 	}
 	err = s.renameDirectory(s.tmp, s.wd)
+	s.log.Debugf("performed rename on %s to %s", s.tmp, s.wd)
+
 	return err
 }
 
@@ -173,7 +175,7 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 			return err
 		}
 		rendered.Write(t)
-		s.log.Debugf("created namespace manifest for %s:%s", deploy.Component, deploy.Environment)
+		s.log.Debugf("created namespace manifest for %s", deploy.Id())
 	}
 	s.client.ReleaseName = chrt.Name()
 	s.client.Namespace = deploy.Namespace.Name
@@ -185,7 +187,7 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 		return err
 	}
 	rendered.Write([]byte(rel.Manifest))
-	s.log.Debugf("rendered chart %s.%s for %s:%s", chrt.Name(), chrt.Metadata.Version, deploy.Component, deploy.Environment)
+	s.log.Debugf("rendered chart %s.%s for %s", chrt.Name(), chrt.Metadata.Version, deploy.Id())
 
 	// with
 	if deploy.With != nil {
@@ -220,26 +222,30 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 					rendered.Write([]byte("---\n"))
 					rendered.Write([]byte(fmt.Sprintf("# Source: simple-ops with %s.yml\n", p)))
 					rendered.Write(t)
-					s.log.Debugf("generated with %s type %s for %s:%s", name, p, deploy.Component, deploy.Environment)
+					s.log.Debugf("generated with %s type %s for %s", name, p, deploy.Id())
 
 				} else {
 					if err := s.generateWithToPath(p, with, name); err != nil {
 						return err
 					}
-					s.log.Debugf("generated with %s type %s for %s:%s to path %s", name, p, deploy.Component, deploy.Environment, with.Path)
+					s.log.Debugf("generated with %s type %s for %s to path %s", name, p, deploy.Id(), with.Path)
 				}
 			}
 		}
 	}
 
+	// kustomize labels
+	t, err = s.kustomizeLabels(deploy.Labels, rendered.Bytes())
+	if err != nil {
+		return err
+	}
+
 	// inject namespace
 	if deploy.Namespace.Inject {
-		if t, err = s.injectNamespace(deploy, rendered.Bytes()); err != nil {
+		if t, err = s.kustomizeNamespace(deploy, t); err != nil {
 			return err
 		}
 		s.log.Debugf("injected namespace %s", deploy.Namespace.Name)
-	} else {
-		t = rendered.Bytes()
 	}
 
 	// write manifest
@@ -361,8 +367,14 @@ func (s Svc) loadChart(deploy *cfg.Deploy) (*chart.Chart, error) {
 	return chrt, err
 }
 
+// Namespace create without spec and status for tidier yaml
+type Namespace struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+}
+
 func (s Svc) createNamespaceManifest(deploy *cfg.Deploy) ([]byte, error) {
-	ns := &v1.Namespace{
+	ns := Namespace{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "Namespace",
@@ -377,14 +389,33 @@ func (s Svc) createNamespaceManifest(deploy *cfg.Deploy) ([]byte, error) {
 	for k, v := range deploy.Namespace.Labels {
 		ns.ObjectMeta.Labels[k] = v
 	}
-	return yaml.Marshal(ns)
+	yml, err := yaml.Marshal(ns)
+	if err != nil {
+		return yml, err
+	}
+	// remove creationTimestamp: null
+	return bytes.Replace(yml, []byte("creationTimestamp: null"), []byte(""), 1), nil
 }
 
-func (s Svc) injectNamespace(deploy *cfg.Deploy, manifest []byte) ([]byte, error) {
+func (s Svc) kustomizeNamespace(deploy *cfg.Deploy, manifest []byte) ([]byte, error) {
 	buf := bytes.Buffer{}
 	err := kio.Pipeline{
 		Inputs:  []kio.Reader{&kio.ByteReader{Reader: bytes.NewBuffer(manifest)}},
 		Filters: []kio.Filter{namespace.Filter{Namespace: deploy.Namespace.Name, FsSlice: types.FsSlice{}}},
+		Outputs: []kio.Writer{kio.ByteWriter{Writer: &buf}},
+	}.Execute()
+	return buf.Bytes(), err
+}
+
+func (s Svc) kustomizeLabels(lbls map[string]string, manifest []byte) ([]byte, error) {
+	buf := bytes.Buffer{}
+	fslice := types.FsSlice{
+		{Path: "metadata/labels", CreateIfNotPresent: true},
+		{Path: "spec/template/metadata/labels", CreateIfNotPresent: false},
+	}
+	err := kio.Pipeline{
+		Inputs:  []kio.Reader{&kio.ByteReader{Reader: bytes.NewBuffer(manifest)}},
+		Filters: []kio.Filter{labels.Filter{Labels: lbls, FsSlice: fslice}},
 		Outputs: []kio.Writer{kio.ByteWriter{Writer: &buf}},
 	}.Execute()
 	return buf.Bytes(), err
@@ -406,6 +437,7 @@ func (s Svc) renameDirectory(from string, to string) error {
 		if err := s.appFs.MkdirAll(to, defaultDirPerm); err != nil {
 			return err
 		}
+		defer func() { _ = os.RemoveAll(from) }()
 		return cp.Copy(from, to, cp.Options{AddPermission: defaultFilePerm, PreserveOwner: true})
 	case *afero.MemMapFs:
 		// move files (not a fan of this)
