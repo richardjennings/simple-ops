@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/richardjennings/simple-ops/internal/cfg"
-	"github.com/richardjennings/simple-ops/internal/meta/show"
+	"github.com/richardjennings/simple-ops/internal/show"
 	"github.com/spf13/cobra"
 )
 

@@ -17,7 +17,7 @@ type (
 		Charts []*ChartSource `json:"charts"`
 	}
 	ChartSource struct {
-		Name       string `json:"charts"`
+		Name       string `json:"chart"`
 		Repository string `json:"repository"`
 		Version    string `json:"version"`
 		Digest     string `json:"digest"`
@@ -28,17 +28,14 @@ func NewLock(fs afero.Fs, wd string, log *logrus.Logger) *Lock {
 	return &Lock{appFs: afero.Afero{Fs: fs}, wd: wd, log: log}
 }
 
-func (l *Lock) AddChart(name string, repository string, version string) error {
+func (l *Lock) AddChart(name string, repository string, version string, digest string) error {
 	lf, err := l.readLockFile()
 	if err != nil {
 		return err
 	}
 	for _, v := range lf.Charts {
 		if v.Name == name {
-			if v.Repository == repository && v.Version == version {
-				// nothing to do ... ?
-				// check digest >?
-				// @todo
+			if v.Repository == repository && v.Version == version && v.Digest == digest {
 				return nil
 			}
 		}
@@ -47,7 +44,7 @@ func (l *Lock) AddChart(name string, repository string, version string) error {
 		Name:       name,
 		Repository: repository,
 		Version:    version,
-		Digest:     "",
+		Digest:     digest,
 	})
 	return l.writeLockFile(lf)
 }

@@ -1,13 +1,27 @@
-package meta
+package images
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/richardjennings/simple-ops/internal/cfg"
+	"github.com/richardjennings/simple-ops/internal/manifest"
+	"github.com/richardjennings/simple-ops/internal/matcher"
+	"github.com/spf13/cobra"
+)
 
 type (
+	Svc struct {
+		c *cfg.Svc
+		m *manifest.Svc
+		i *matcher.Svc
+	}
 	Images struct {
 		FilePath string
 		Images   []string
 	}
 )
+
+func NewSvc(c *cfg.Svc, m *manifest.Svc, i *matcher.Svc) *Svc {
+	return &Svc{c: c, m: m, i: i}
+}
 
 func (s Svc) ListImagesUniquePerFile() ([]Images, error) {
 	var result []Images

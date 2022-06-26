@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"github.com/richardjennings/simple-ops/internal/cfg"
-	"github.com/richardjennings/simple-ops/internal/manifest/matcher"
+	"github.com/richardjennings/simple-ops/internal/matcher"
 	"github.com/spf13/cobra"
 )
 

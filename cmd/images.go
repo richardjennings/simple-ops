@@ -3,7 +3,7 @@ package cmd
 import (
 	"errors"
 	"github.com/richardjennings/simple-ops/internal/cfg"
-	"github.com/richardjennings/simple-ops/internal/meta"
+	"github.com/richardjennings/simple-ops/internal/images"
 	"github.com/spf13/cobra"
 )
 
@@ -26,14 +26,14 @@ func imagesFn(_ *cobra.Command, args []string) error {
 		}
 		return imagesForDeploy(env, comp)
 	}
-	return images()
+	return allImages()
 }
 
 func imagesForDeploy(environment string, component string) error {
 	config := newConfigService()
 	manifests := newManifestService()
 	match := newMatcherService()
-	metas := meta.NewSvc(config, manifests, match)
+	metas := images.NewSvc(config, manifests, match)
 	var res interface{}
 	var err error
 	res, err = metas.ListUniqueImagesForDeploy(environment, component)
@@ -41,11 +41,11 @@ func imagesForDeploy(environment string, component string) error {
 	return response(res)
 }
 
-func images() error {
+func allImages() error {
 	config := newConfigService()
 	manifests := newManifestService()
 	match := newMatcherService()
-	metas := meta.NewSvc(config, manifests, match)
+	metas := images.NewSvc(config, manifests, match)
 	var res interface{}
 	var err error
 	res, err = metas.ListAllImagesUnique()

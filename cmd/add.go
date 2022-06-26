@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/spf13/cobra"
 )
 
@@ -22,10 +23,14 @@ func init() {
 	rootCmd.AddCommand(addCmd)
 }
 
-func Add(cmd *cobra.Command, args []string) {
+func Add(_ *cobra.Command, args []string) {
 	name := args[0]
 	manifests := newManifestService()
 	cobra.CheckErr(manifests.Pull(name, repository, version, addConfig))
+	path := manifests.PathForChart(fmt.Sprintf("%s-%s.tgz", name, version))
+	cmp := newCompareService()
+	hash, err := cmp.SHA256File(path)
+	cobra.CheckErr(err)
 	lock := newLockService()
-	cobra.CheckErr(lock.AddChart(name, repository, version))
+	cobra.CheckErr(lock.AddChart(name, repository, version, hash))
 }
