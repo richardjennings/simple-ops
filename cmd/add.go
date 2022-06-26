@@ -23,6 +23,9 @@ func init() {
 }
 
 func Add(cmd *cobra.Command, args []string) {
+	name := args[0]
 	manifests := newManifestService()
-	cobra.CheckErr(manifests.Pull(args[0], repository, version, addConfig))
+	cobra.CheckErr(manifests.Pull(name, repository, version, addConfig))
+	lock := newLockService()
+	cobra.CheckErr(lock.AddChart(name, repository, version))
 }

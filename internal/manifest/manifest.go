@@ -17,6 +17,7 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"io/fs"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"os"
 	"path/filepath"
 	"sigs.k8s.io/kustomize/api/filters/labels"
 	"sigs.k8s.io/kustomize/api/filters/namespace"
@@ -24,8 +25,6 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/kio"
 	"sort"
 	"strings"
-
-	"os"
 )
 
 const (
@@ -123,8 +122,8 @@ func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig boo
 		s.log.Debugf("helm pull: %s\n", out)
 	}
 	s.log.Debugf("saved chart %s-%s.tgz to %s", chartRef, version, p.DestDir)
-	return s.pullAddConfig(addConfig, chartRef, version)
 
+	return s.pullAddConfig(addConfig, chartRef, version)
 }
 
 func (s Svc) pull(repoUrl string, version string) (*action.Pull, error) {

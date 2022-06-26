@@ -7,11 +7,10 @@
 Simple-Ops is a GitOps repository management tool.
 
 ## Why
-There is a lack of tooling available specifically designed to make managing a GitOps repository simple.
 
-Simple-Ops promotes repeatability and consistency as first class features. The [Verify command](#Verify) rebuilds all deployment
-manifests and compares the result with the current deployment manifests. This provides a convenient mechanism as a CI check or
-pre-receive hook that gives confidence in the correctness of manifests.
+Simple-Ops promotes repeatability and consistency as first class features with the repository acting as a single source of truth.
+The [Verify command](#Verify) rebuilds all deployment manifests and compares the result with the current deployment manifests.
+This provides a convenient mechanism as a CI check or pre-receive hook that gives confidence in the correctness of manifests.
 
 Simple-Ops promotes the use of charts vendored in the repository as tgz files and does not support fetching remote charts at 
 run-time. This 'vendoring' further improves reliability and resilience aiming to make the [Generate command](#Generate) a pure function.
@@ -218,6 +217,15 @@ deploy:
                            argocd.argoproj.io/secret-type: repository
 ```
 creates a sealed secrets manifest called argocd-repo-github appended to ```./deploy/example/argo-cd/manifest.yaml```
+
+## Alternatives
+### Argo-CD
+### Flux 2
+### Helm
+### Helmfile
+### Helmwave
+### Kustomize
+### Pulumi
 
 
 ## Key tenants

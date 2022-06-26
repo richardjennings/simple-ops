@@ -71,6 +71,10 @@ func newConfigService() *cfg.Svc {
 	return cfg.NewSvc(afero.NewOsFs(), workdir, log)
 }
 
+func newLockService() *cfg.Lock {
+	return cfg.NewLock(afero.NewOsFs(), workdir, log)
+}
+
 func newMatcherService() *matcher.Svc {
 	return matcher.NewSvc(afero.NewOsFs(), workdir, log)
 }

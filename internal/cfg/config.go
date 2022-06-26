@@ -23,6 +23,7 @@ const (
 	DefaultConfigDirPerm = 0755
 	Suffix               = ".yml"
 	GlobalConfigFile     = "simple-ops.yml"
+	LockFileName         = "simple-ops.lock"
 )
 
 type (
@@ -143,6 +144,9 @@ func (s Svc) Init(force bool, template string) error {
 		return err
 	}
 	if err := s.appFs.WriteFile(filepath.Join(path, GlobalConfigFile), []byte(template), DefaultConfigFsPerm); err != nil {
+		return err
+	}
+	if err := s.appFs.WriteFile(filepath.Join(path, LockFileName), []byte(""), DefaultConfigFsPerm); err != nil {
 		return err
 	}
 	return nil

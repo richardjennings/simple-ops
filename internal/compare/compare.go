@@ -38,6 +38,9 @@ func (s Svc) SHA256(path string) (string, error) {
 				return err
 			}
 			if _, err := io.Copy(hash, f); err != nil {
+				if err2 := f.Close(); err2 != nil {
+					return err
+				}
 				return err
 			}
 			if err := f.Close(); err != nil {
