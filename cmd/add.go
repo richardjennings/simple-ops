@@ -28,7 +28,7 @@ func Add(_ *cobra.Command, args []string) {
 	manifests := newManifestService()
 	cobra.CheckErr(manifests.Pull(name, repository, version, addConfig))
 	path := manifests.PathForChart(fmt.Sprintf("%s-%s.tgz", name, version))
-	cmp := newCompareService()
+	cmp := newHashService()
 	hash, err := cmp.SHA256File(path)
 	cobra.CheckErr(err)
 	lock := newLockService()

@@ -29,7 +29,7 @@ func (s Svc) SHA256File(path string) (string, error) {
 	}
 	if _, err := io.Copy(hash, f); err != nil {
 		if err2 := f.Close(); err2 != nil {
-			return "", err
+			return "", fmt.Errorf("%s & %s", err, err2)
 		}
 		return "", err
 	}
@@ -58,7 +58,7 @@ func (s Svc) SHA256(path string) (string, error) {
 			}
 			if _, err := io.Copy(hash, f); err != nil {
 				if err2 := f.Close(); err2 != nil {
-					return err
+					return fmt.Errorf("%s & %s", err, err2)
 				}
 				return err
 			}

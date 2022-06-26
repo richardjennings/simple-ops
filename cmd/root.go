@@ -72,7 +72,7 @@ func newConfigService() *cfg.Svc {
 	return cfg.NewSvc(afero.NewOsFs(), workdir, log)
 }
 
-func newCompareService() *hash.Svc {
+func newHashService() *hash.Svc {
 	return hash.NewSvc(afero.NewOsFs(), log)
 }
 

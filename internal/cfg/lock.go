@@ -49,6 +49,10 @@ func (l *Lock) AddChart(name string, repository string, version string, digest s
 	return l.writeLockFile(lf)
 }
 
+func (l *Lock) LockFile() (*LockFile, error) {
+	return l.readLockFile()
+}
+
 func (l *Lock) readLockFile() (*LockFile, error) {
 	b, err := l.appFs.ReadFile(filepath.Join(l.wd, LockFileName))
 	if err != nil {
