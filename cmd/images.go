@@ -3,7 +3,7 @@ package cmd
 import (
 	"errors"
 	"github.com/richardjennings/simple-ops/internal/cfg"
-	"github.com/richardjennings/simple-ops/internal/images"
+	"github.com/richardjennings/simple-ops/internal/matcher"
 	"github.com/spf13/cobra"
 )
 
@@ -33,24 +33,34 @@ func imagesForDeploy(environment string, component string) error {
 	config := newConfigService()
 	manifests := newManifestService()
 	match := newMatcherService()
-	metas := images.NewSvc(config, manifests, match)
-	var res interface{}
-	var err error
-	res, err = metas.ListUniqueImagesForDeploy(environment, component)
-	cobra.CheckErr(err)
-	return response(res)
+	d, err := config.GetDeploy(component, environment)
+	if err != nil {
+		return err
+	}
+	imgs, err := match.Images(manifests.ManifestPathForDeploy(d))
+	if err != nil {
+		return err
+	}
+	return response(imgs)
 }
 
 func allImages() error {
+	var images matcher.Images
 	config := newConfigService()
 	manifests := newManifestService()
 	match := newMatcherService()
-	metas := images.NewSvc(config, manifests, match)
-	var res interface{}
-	var err error
-	res, err = metas.ListAllImagesUnique()
-	cobra.CheckErr(err)
-	return response(res)
+	deploys, err := config.Deploys()
+	if err != nil {
+		return err
+	}
+	for _, d := range deploys {
+		imgs, err := match.Images(manifests.ManifestPathForDeploy(d))
+		if err != nil {
+			return err
+		}
+		images = append(images, imgs...)
+	}
+	return response(images.Unique())
 }
 
 type imageListFormatType string

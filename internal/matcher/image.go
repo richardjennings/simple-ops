@@ -31,6 +31,18 @@ var ImageMatchers = []Matcher{
 
 type Images []string
 
+func (i Images) Unique() Images {
+	hm := make(map[string]struct{})
+	var res Images
+	for _, v := range i {
+		if _, ok := hm[v]; !ok {
+			res = append(res, v)
+			hm[v] = struct{}{}
+		}
+	}
+	return res
+}
+
 func (m Svc) Images(filePath string) ([]string, error) {
 	var imgs []string
 	matches, err := m.Match(filePath, ImageMatchers)
