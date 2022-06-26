@@ -1,6 +1,9 @@
 name: golangci-lint
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+    types: [opened, reopened]
 jobs:
   golangci:
     name: lint
