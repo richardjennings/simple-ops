@@ -38,7 +38,6 @@ type (
 		client *action.Install
 		wd     string
 		tmp    string
-		wpaths []string
 		log    *logrus.Logger
 	}
 )
@@ -138,7 +137,7 @@ func (s Svc) pull(repoUrl string, version string) (*action.Pull, error) {
 }
 
 func (s Svc) pullAddConfig(addConfig bool, chartRef string, version string) error {
-	if addConfig == true {
+	if addConfig {
 		conf := "chart: " + chartRef + "-" + version + ".tgz"
 		path := filepath.Join(s.wd, cfg.ConfPath, chartRef+cfg.Suffix)
 		if err := s.appFs.WriteFile(path, []byte(conf), defaultFilePerm); err != nil {

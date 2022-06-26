@@ -66,7 +66,7 @@ func (m Svc) match(nodes []*yaml.RNode, matchers []Matcher) (Matches, error) {
 					if err != nil {
 						return matches, err
 					}
-					for k, _ := range matcher.Matches {
+					for k := range matcher.Matches {
 						matches = append(matches, Match{
 							Resource: n,
 							Node:     node,

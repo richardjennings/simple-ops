@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"github.com/richardjennings/simple-ops/internal/cfg"
 	"github.com/richardjennings/simple-ops/internal/matcher"
 	"github.com/spf13/cobra"
@@ -46,37 +45,22 @@ func imagesForDeploy(environment string, component string) error {
 
 func allImages() error {
 	var images matcher.Images
+	var imgs matcher.Images
+	var deploys cfg.Deploys
+	var err error
 	config := newConfigService()
 	manifests := newManifestService()
 	match := newMatcherService()
-	deploys, err := config.Deploys()
+	deploys, err = config.Deploys()
 	if err != nil {
 		return err
 	}
 	for _, d := range deploys {
-		imgs, err := match.Images(manifests.ManifestPathForDeploy(d))
+		imgs, err = match.Images(manifests.ManifestPathForDeploy(d))
 		if err != nil {
 			return err
 		}
 		images = append(images, imgs...)
 	}
 	return response(images.Unique())
-}
-
-type imageListFormatType string
-
-func (o *imageListFormatType) String() string {
-	return string(*o)
-}
-func (o *imageListFormatType) Set(v string) error {
-	switch v {
-	case "unique", "uniquePerFile":
-		*o = imageListFormatType(v)
-	default:
-		return errors.New("supported output types are [yaml, json]")
-	}
-	return nil
-}
-func (o *imageListFormatType) Type() string {
-	return "outputType"
 }
