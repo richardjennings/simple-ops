@@ -12,14 +12,14 @@ import (
 var verifyCmd = &cobra.Command{
 	Use:   "verify",
 	Short: "verify deployment manifests match config",
-	Run:   Verify,
+	RunE:  VerifyFn,
 }
 
 func init() {
 	rootCmd.AddCommand(verifyCmd)
 }
 
-func Verify(cmd *cobra.Command, args []string) {
+func VerifyFn(_ *cobra.Command, _ []string) error {
 	var deploys cfg.Deploys
 	var err error
 	var invalid bool
@@ -33,7 +33,10 @@ func Verify(cmd *cobra.Command, args []string) {
 		log.Error("deploy is not consistent with configuration")
 		invalid = true
 	}
-	fmt.Println("deploy is consistent with configuration")
+	_, err = fmt.Fprintln(stdOut, "deploy is consistent with configuration")
+	if err != nil {
+		return err
+	}
 	// verify charts
 	lock := newLockService()
 	l, err := lock.LockFile()
@@ -77,5 +80,6 @@ func Verify(cmd *cobra.Command, args []string) {
 	if invalid {
 		os.Exit(1)
 	}
-	fmt.Println("charts in lock file are consistent")
+	_, err = fmt.Fprintln(stdOut, "charts in lock file are consistent")
+	return err
 }

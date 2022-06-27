@@ -72,5 +72,9 @@ func Test_Integration(t *testing.T) {
 	actual = stdOut.(*bytes.Buffer).String()
 	assert.Assert(t, strings.Contains(actual, "appVersion: 0.6.1") == true)
 
+	// verify
 	stdOut = bytes.NewBuffer(nil)
+	VerifyFn(nil, []string{})
+	actual = stdOut.(*bytes.Buffer).String()
+	assert.Equal(t, actual, "deploy is consistent with configuration\ncharts in lock file are consistent\n")
 }
