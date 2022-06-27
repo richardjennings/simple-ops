@@ -1,5 +1,4 @@
 //go:build integration
-// +build integration
 
 package cmd
 
@@ -8,6 +7,7 @@ import (
 	"github.com/spf13/afero"
 	"gotest.tools/assert"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -46,10 +46,31 @@ func Test_Integration(t *testing.T) {
 	SetFn(nil, []string{"metrics-server.deploy.test.namespace.create", "true"})
 	SetFn(nil, []string{"metrics-server.deploy.test.namespace.inject", "true"})
 	GenerateFn(nil, []string{})
+
+	// container resources
 	if err := ContainerResourcesFn(nil, []string{"test.metrics-server"}); err != nil {
 		t.Error(err)
 	}
 	actual := stdOut.(*bytes.Buffer).String()
 	expected := "- name: metrics-server\n  parentName: metrics-server\n  parentType: Deployment\n  resources:\n    limits: {}\n    requests: {}\n"
 	assert.Equal(t, actual, expected)
+
+	// images
+	stdOut = bytes.NewBuffer(nil)
+	if err := imagesFn(nil, []string{"test.metrics-server"}); err != nil {
+		t.Error(err)
+	}
+	actual = stdOut.(*bytes.Buffer).String()
+	expected = "- k8s.gcr.io/metrics-server/metrics-server:v0.6.1\n"
+	assert.Equal(t, actual, expected)
+
+	// show chart
+	stdOut = bytes.NewBuffer(nil)
+	if err := showFn(nil, []string{"chart", "test.metrics-server"}); err != nil {
+		t.Error(err)
+	}
+	actual = stdOut.(*bytes.Buffer).String()
+	assert.Assert(t, strings.Contains(actual, "appVersion: 0.6.1") == true)
+
+	stdOut = bytes.NewBuffer(nil)
 }

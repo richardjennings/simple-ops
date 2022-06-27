@@ -42,6 +42,6 @@ func showFn(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(output)
-	return nil
+	_, err = fmt.Fprintln(stdOut, output)
+	return err
 }
