@@ -12,6 +12,85 @@ import (
 	"testing"
 )
 
+func Test_Integration(t *testing.T) {
+	var o, e, expected string
+	i := newIntegration(t)
+	i.testSetup()
+	defer i.testTearDown()
+
+	// init
+	o, e = i.Init()
+	assert.Assert(t, o == "" && e == "")
+
+	// add
+	o, e = i.Add("metrics-server", "https://kubernetes-sigs.github.io/metrics-server/", "3.8.2", true)
+	assert.Assert(t, o == "" && e == "")
+
+	// set bool value
+	o, e = i.Set("metrics-server.deploy.test.values.metrics.enable", "true", "bool", false)
+	assert.Assert(t, o == "" && e == "")
+
+	// set string
+	o, e = i.Set("metrics-server.deploy.test.namespace.name", "metrics-server", "", false)
+	assert.Assert(t, o == "" && e == "")
+
+	// set enable namespace create bool from stdin
+	i.in.Write([]byte("true"))
+	o, e = i.Set("metrics-server.deploy.test.namespace.create", "", "bool", true)
+	assert.Assert(t, o == "" && e == "")
+
+	// set enable namespace inject bool
+	stdin = false // the init fn is not called to set the value of stdin back to false ...
+	o, e = i.Set("metrics-server.deploy.test.namespace.inject", "true", "bool", false)
+	assert.Assert(t, o == "" && e == "")
+
+	// generate
+	o, e = i.Generate()
+	assert.Assert(t, o == "" && e == "")
+
+	// container resources yaml
+	o, e = i.ContainerResources("test.metrics-server", "yaml")
+	expected = "- name: metrics-server\n  parentName: metrics-server\n  parentType: Deployment\n  resources:\n    limits: {}\n    requests: {}\n"
+	assert.Equal(t, o, expected)
+	assert.Equal(t, e, "")
+
+	// container resources all json
+	o, e = i.ContainerResources("", "json")
+	expected = "[{\"Name\":\"test.metrics-server\",\"Resources\":[{\"parentName\":\"metrics-server\",\"parentType\":\"Deployment\",\"name\":\"metrics-server\",\"resources\":{\"limits\":{},\"requests\":{}}}]}]\n"
+	assert.Equal(t, o, expected)
+	assert.Equal(t, e, "")
+
+	// images for deployment yaml
+	o, e = i.Images("test.metrics-server", "yaml")
+	expected = "- k8s.gcr.io/metrics-server/metrics-server:v0.6.1\n"
+	assert.Equal(t, o, expected)
+	assert.Equal(t, e, "")
+
+	// images all json
+	o, e = i.Images("", "json")
+	expected = "[\"k8s.gcr.io/metrics-server/metrics-server:v0.6.1\"]\n"
+	assert.Equal(t, o, expected)
+	assert.Equal(t, e, "")
+
+	// show chart
+	o, e = i.Show("chart", "test.metrics-server")
+	assert.Assert(t, strings.Contains(o, "appVersion: 0.6.1") == true)
+	assert.Equal(t, e, "")
+
+	// verify
+	o, e = i.Verify()
+	expected = "deploy is consistent with configuration\ncharts in lock file are consistent\n"
+	assert.Equal(t, o, expected)
+	assert.Equal(t, e, "")
+
+	Version = "1.2.3"
+	o, e = i.Version()
+	expected = "1.2.3\n"
+	assert.Equal(t, o, expected)
+	assert.Equal(t, e, "")
+
+}
+
 type integration struct {
 	in  *bytes.Buffer
 	out *bytes.Buffer
@@ -29,6 +108,7 @@ func newIntegration(t *testing.T) integration {
 }
 
 func (i integration) resetBuffers() {
+	i.in.Reset()
 	i.out.Reset()
 	i.err.Reset()
 }
@@ -79,8 +159,14 @@ func (i integration) Add(name string, repository string, version string, addConf
 	return i.runCmd(rootCmd)
 }
 
-func (i integration) Set(key string, value string, as string) (string, string) {
-	rootCmd.SetArgs([]string{"set", key, value, "--type", as})
+func (i integration) Set(key string, value string, as string, stdin bool) (string, string) {
+	args := []string{"set", "--type", as, key}
+	if !stdin {
+		args = append(args, value)
+	} else {
+		args = append(args, "--stdin")
+	}
+	rootCmd.SetArgs(args)
 	return i.runCmd(rootCmd)
 }
 
@@ -90,12 +176,20 @@ func (i integration) Generate() (string, string) {
 }
 
 func (i integration) ContainerResources(id string, outputType string) (string, string) {
-	rootCmd.SetArgs([]string{"container-resources", id, "--output", outputType})
+	args := []string{"container-resources", "--output", outputType}
+	if id != "" {
+		args = append(args, id)
+	}
+	rootCmd.SetArgs(args)
 	return i.runCmd(rootCmd)
 }
 
 func (i integration) Images(id string, outputType string) (string, string) {
-	rootCmd.SetArgs([]string{"images", id, "--output", outputType})
+	args := []string{"images", "--output", outputType}
+	if id != "" {
+		args = append(args, id)
+	}
+	rootCmd.SetArgs(args)
 	return i.runCmd(rootCmd)
 }
 
@@ -109,65 +203,7 @@ func (i integration) Verify() (string, string) {
 	return i.runCmd(rootCmd)
 }
 
-func Test_Integration(t *testing.T) {
-	var o, e, expected string
-	i := newIntegration(t)
-	i.testSetup()
-	defer i.testTearDown()
-
-	// init
-	o, e = i.Init()
-	assert.Assert(t, o == "" && e == "")
-
-	// add
-	o, e = i.Add("metrics-server", "https://kubernetes-sigs.github.io/metrics-server/", "3.8.2", true)
-	assert.Assert(t, o == "" && e == "")
-
-	// set bool value
-	o, e = i.Set("metrics-server.deploy.test.values.metrics.enable", "true", "bool")
-	assert.Assert(t, o == "" && e == "")
-
-	// set string
-	o, e = i.Set("metrics-server.deploy.test.namespace.name", "metrics-server", "")
-	assert.Assert(t, o == "" && e == "")
-
-	// set enable namespace create and inject
-	o, e = i.Set("metrics-server.deploy.test.namespace.create", "true", "bool")
-	assert.Assert(t, o == "" && e == "")
-	o, e = i.Set("metrics-server.deploy.test.namespace.inject", "true", "bool")
-	assert.Assert(t, o == "" && e == "")
-
-	// generate
-	o, e = i.Generate()
-	assert.Assert(t, o == "" && e == "")
-
-	// container resources yaml
-	o, e = i.ContainerResources("test.metrics-server", "yaml")
-	expected = "- name: metrics-server\n  parentName: metrics-server\n  parentType: Deployment\n  resources:\n    limits: {}\n    requests: {}\n"
-	assert.Equal(t, o, expected)
-	assert.Equal(t, e, "")
-
-	// container resources json
-	o, e = i.ContainerResources("test.metrics-server", "json")
-	expected = "[{\"parentName\":\"metrics-server\",\"parentType\":\"Deployment\",\"name\":\"metrics-server\",\"resources\":{\"limits\":{},\"requests\":{}}}]\n"
-	assert.Equal(t, o, expected)
-	assert.Equal(t, e, "")
-
-	// images for deployment
-	o, e = i.Images("test.metrics-server", "yaml")
-	expected = "- k8s.gcr.io/metrics-server/metrics-server:v0.6.1\n"
-	assert.Equal(t, o, expected)
-	assert.Equal(t, e, "")
-
-	// show chart
-	o, e = i.Show("chart", "test.metrics-server")
-	assert.Assert(t, strings.Contains(o, "appVersion: 0.6.1") == true)
-	assert.Equal(t, e, "")
-
-	// verify
-	o, e = i.Verify()
-	expected = "deploy is consistent with configuration\ncharts in lock file are consistent\n"
-	assert.Equal(t, o, expected)
-	assert.Equal(t, e, "")
-
+func (i integration) Version() (string, string) {
+	rootCmd.SetArgs([]string{"version"})
+	return i.runCmd(rootCmd)
 }

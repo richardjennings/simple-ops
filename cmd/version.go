@@ -11,13 +11,14 @@ var VsCmd = &cobra.Command{
 	Use:   "version",
 	Short: "version",
 	Args:  cobra.ExactArgs(0),
-	Run:   Vs,
+	RunE:  Vs,
 }
 
 func init() {
 	rootCmd.AddCommand(VsCmd)
 }
 
-func Vs(cmd *cobra.Command, args []string) {
-	fmt.Println(Version)
+func Vs(cmd *cobra.Command, args []string) error {
+	_, err := fmt.Fprintln(cmd.OutOrStdout(), Version)
+	return err
 }
