@@ -13,7 +13,9 @@ var addCmd = &cobra.Command{
 	Use:   "add [chart name]",
 	Short: "add a Helm chart as tgz",
 	Args:  cobra.ExactArgs(1),
-	Run:   AddFn,
+	RunE: func(_ *cobra.Command, args []string) error {
+		return AddFn(args[0], repository, version, addConfig)
+	},
 }
 
 func init() {
@@ -23,14 +25,17 @@ func init() {
 	rootCmd.AddCommand(addCmd)
 }
 
-func AddFn(_ *cobra.Command, args []string) {
-	name := args[0]
+func AddFn(name string, repository string, version string, addConfig bool) error {
 	manifests := newManifestService()
-	cobra.CheckErr(manifests.Pull(name, repository, version, addConfig))
+	if err := manifests.Pull(name, repository, version, addConfig); err != nil {
+		return err
+	}
 	path := manifests.PathForChart(fmt.Sprintf("%s-%s.tgz", name, version))
 	cmp := newHashService()
 	hash, err := cmp.SHA256File(path)
-	cobra.CheckErr(err)
+	if err != nil {
+		return err
+	}
 	lock := newLockService()
-	cobra.CheckErr(lock.AddChart(name, repository, version, hash))
+	return lock.AddChart(name, repository, version, hash)
 }

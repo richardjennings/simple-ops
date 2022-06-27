@@ -19,10 +19,11 @@ func init() {
 	rootCmd.AddCommand(verifyCmd)
 }
 
-func VerifyFn(_ *cobra.Command, _ []string) error {
+func VerifyFn(cmd *cobra.Command, _ []string) error {
 	var deploys cfg.Deploys
 	var err error
 	var invalid bool
+	w := cmd.OutOrStdout()
 	config := newConfigService()
 	manifests := newManifestService()
 	deploys, err = config.Deploys()
@@ -33,7 +34,7 @@ func VerifyFn(_ *cobra.Command, _ []string) error {
 		log.Error("deploy is not consistent with configuration")
 		invalid = true
 	}
-	_, err = fmt.Fprintln(stdOut, "deploy is consistent with configuration")
+	_, err = fmt.Fprintln(w, "deploy is consistent with configuration")
 	if err != nil {
 		return err
 	}
@@ -80,6 +81,6 @@ func VerifyFn(_ *cobra.Command, _ []string) error {
 	if invalid {
 		os.Exit(1)
 	}
-	_, err = fmt.Fprintln(stdOut, "charts in lock file are consistent")
+	_, err = fmt.Fprintln(w, "charts in lock file are consistent")
 	return err
 }

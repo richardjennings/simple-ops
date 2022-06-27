@@ -4,6 +4,7 @@ import (
 	"github.com/richardjennings/simple-ops/internal/cfg"
 	"github.com/richardjennings/simple-ops/internal/matcher"
 	"github.com/spf13/cobra"
+	"io"
 )
 
 var imageCmd = &cobra.Command{
@@ -17,18 +18,19 @@ func init() {
 	rootCmd.AddCommand(imageCmd)
 }
 
-func imagesFn(_ *cobra.Command, args []string) error {
+func imagesFn(cmd *cobra.Command, args []string) error {
+	w := cmd.OutOrStdout()
 	if len(args) == 1 {
 		env, comp, err := cfg.DeployIdParts(args[0])
 		if err != nil {
 			return err
 		}
-		return imagesForDeploy(env, comp)
+		return imagesForDeploy(env, comp, w)
 	}
-	return allImages()
+	return allImages(w)
 }
 
-func imagesForDeploy(environment string, component string) error {
+func imagesForDeploy(environment string, component string, w io.Writer) error {
 	config := newConfigService()
 	manifests := newManifestService()
 	match := newMatcherService()
@@ -40,10 +42,10 @@ func imagesForDeploy(environment string, component string) error {
 	if err != nil {
 		return err
 	}
-	return response(imgs)
+	return response(imgs, w)
 }
 
-func allImages() error {
+func allImages(w io.Writer) error {
 	var images matcher.Images
 	var imgs matcher.Images
 	var deploys cfg.Deploys
@@ -62,5 +64,5 @@ func allImages() error {
 		}
 		images = append(images, imgs...)
 	}
-	return response(images.Unique())
+	return response(images.Unique(), w)
 }

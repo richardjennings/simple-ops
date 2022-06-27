@@ -14,31 +14,34 @@ var setCmd = &cobra.Command{
 	Use:   "set",
 	Short: "modify configuration",
 	Args:  cobra.RangeArgs(1, 2),
-	Run:   SetFn,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		var value string
+		if stdin {
+			v, err := ioutil.ReadAll(cmd.InOrStdin())
+			if err != nil {
+				return err
+			}
+			value = string(v)
+		} else {
+			if len(args) != 2 {
+				return errors.New("expected 2 arguments")
+			}
+			value = args[1]
+		}
+		return SetFn(args[0], value, setType)
+	},
 }
 
 func init() {
 	setCmd.PersistentFlags().BoolVar(&stdin, "stdin", false, "")
-	setCmd.PersistentFlags().StringVar(&setType, "setType", "", "")
+	setCmd.PersistentFlags().StringVar(&setType, "type", "", "--type [string, bool, int]")
 	rootCmd.AddCommand(setCmd)
 }
 
-func SetFn(cmd *cobra.Command, args []string) {
-	var value string
+func SetFn(path string, value string, setType string) error {
 	var v interface{}
 	var err error
-	path := args[0]
 	config := newConfigService()
-	if stdin {
-		v, err := ioutil.ReadAll(stdIn)
-		cobra.CheckErr(err)
-		value = string(v)
-	} else {
-		if len(args) != 2 {
-			cobra.CheckErr(errors.New("expected 2 arguments"))
-		}
-		value = args[1]
-	}
 	switch setType {
 	case "bool":
 		v, err = strconv.ParseBool(value)
@@ -49,5 +52,5 @@ func SetFn(cmd *cobra.Command, args []string) {
 	default:
 		v = value
 	}
-	cobra.CheckErr(config.Set(path, v))
+	return config.Set(path, v)
 }

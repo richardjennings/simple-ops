@@ -13,11 +13,10 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"io"
-	"os"
 )
 
-var stdOut = io.ReadWriter(os.Stdout)
-var stdIn = io.ReadWriter(os.Stdin)
+// the FS to use
+var fs afero.Fs
 
 var output outputType = "yaml"
 var verbosity string
@@ -50,17 +49,18 @@ func (o *outputType) Type() string {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	imageCmd.PersistentFlags().Var(&output, "output", "output [yaml, json]")
+	rootCmd.PersistentFlags().Var(&output, "output", "output [yaml, json]")
 	rootCmd.PersistentFlags().StringVarP(&verbosity, "verbosity", "v", logrus.ErrorLevel.String(), "")
 	rootCmd.PersistentFlags().StringVarP(&workdir, "workdir", "w", ".", "")
+	log.SetOutput(rootCmd.OutOrStdout())
 }
 
 func initConfig() {
+	fs = afero.NewOsFs()
 	lvl, err := logrus.ParseLevel(verbosity)
 	cobra.CheckErr(err)
 	log.SetLevel(lvl)
 	log.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
-	log.SetOutput(stdOut)
 }
 
 // Execute executes the root command.
@@ -69,47 +69,47 @@ func Execute() error {
 }
 
 func newManifestService() *manifest.Svc {
-	return manifest.NewSvc(afero.NewOsFs(), workdir, log)
+	return manifest.NewSvc(fs, workdir, log)
 }
 
 func newConfigService() *cfg.Svc {
-	return cfg.NewSvc(afero.NewOsFs(), workdir, log)
+	return cfg.NewSvc(fs, workdir, log)
 }
 
 func newHashService() *hash.Svc {
-	return hash.NewSvc(afero.NewOsFs(), log)
+	return hash.NewSvc(fs, log)
 }
 
 func newLockService() *cfg.Lock {
-	return cfg.NewLock(afero.NewOsFs(), workdir, log)
+	return cfg.NewLock(fs, workdir, log)
 }
 
 func newMatcherService() *matcher.Svc {
-	return matcher.NewSvc(afero.NewOsFs(), workdir, log)
+	return matcher.NewSvc(fs, workdir, log)
 }
 
-func response(l interface{}) error {
+func response(l interface{}, w io.Writer) error {
 	switch output {
 	case "yaml":
-		return asYaml(l)
+		return asYaml(l, w)
 	case "json":
-		return asJson(l)
+		return asJson(l, w)
 	default:
 		return fmt.Errorf("output type %s not recognised", output)
 	}
 }
 
-func asYaml(l interface{}) error {
+func asYaml(l interface{}, w io.Writer) error {
 	data, err := yaml.Marshal(l)
 	cobra.CheckErr(err)
-	_, err = stdOut.Write(data)
+	_, err = w.Write(data)
 	return err
 }
 
-func asJson(l interface{}) error {
+func asJson(l interface{}, w io.Writer) error {
 	data, err := json.Marshal(l)
 	data = append(data, '\n')
 	cobra.CheckErr(err)
-	_, err = stdOut.Write(data)
+	_, err = w.Write(data)
 	return err
 }

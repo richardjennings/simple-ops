@@ -4,31 +4,34 @@ import (
 	"github.com/richardjennings/simple-ops/internal/cfg"
 	"github.com/richardjennings/simple-ops/internal/matcher"
 	"github.com/spf13/cobra"
+	"io"
 )
 
 var containerResourcesCmd = &cobra.Command{
 	Use:   "container-resources [environment.component]",
 	Short: "show container-resource configuration in ",
-	RunE:  ContainerResourcesFn,
 	Args:  cobra.RangeArgs(0, 1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return ContainerResourcesFn(cmd, args, cmd.OutOrStdout())
+	},
 }
 
 func init() {
 	rootCmd.AddCommand(containerResourcesCmd)
 }
 
-func ContainerResourcesFn(_ *cobra.Command, args []string) error {
+func ContainerResourcesFn(_ *cobra.Command, args []string, w io.Writer) error {
 	if len(args) == 1 {
 		env, comp, err := cfg.DeployIdParts(args[0])
 		if err != nil {
 			return err
 		}
-		return containerResourcesForDeploy(comp, env)
+		return containerResourcesForDeploy(comp, env, w)
 	}
-	return containerResourcesForDeploys()
+	return containerResourcesForDeploys(w)
 }
 
-func containerResourcesForDeploy(compName string, envName string) error {
+func containerResourcesForDeploy(compName string, envName string, w io.Writer) error {
 	config := newConfigService()
 	match := newMatcherService()
 	deploy, err := config.GetDeploy(compName, envName)
@@ -43,7 +46,7 @@ func containerResourcesForDeploy(compName string, envName string) error {
 	if err != nil {
 		return err
 	}
-	return response(res)
+	return response(res, w)
 }
 
 type DeployContainerResources struct {
@@ -51,7 +54,7 @@ type DeployContainerResources struct {
 	Resources matcher.ContainerResources
 }
 
-func containerResourcesForDeploys() error {
+func containerResourcesForDeploys(w io.Writer) error {
 	var result []DeployContainerResources
 	config := newConfigService()
 	match := newMatcherService()
@@ -70,5 +73,5 @@ func containerResourcesForDeploys() error {
 		}
 		result = append(result, DeployContainerResources{Name: d.Id(), Resources: res})
 	}
-	return response(result)
+	return response(result, w)
 }
