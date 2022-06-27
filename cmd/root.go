@@ -12,8 +12,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
+	"io"
 	"os"
 )
+
+var stdOut = io.ReadWriter(os.Stdout)
+var stdIn = io.ReadWriter(os.Stdin)
 
 var output outputType = "yaml"
 var verbosity string
@@ -56,7 +60,7 @@ func initConfig() {
 	cobra.CheckErr(err)
 	log.SetLevel(lvl)
 	log.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
-	log.SetOutput(os.Stdout)
+	log.SetOutput(stdOut)
 }
 
 // Execute executes the root command.
@@ -98,7 +102,7 @@ func response(l interface{}) error {
 func asYaml(l interface{}) error {
 	data, err := yaml.Marshal(l)
 	cobra.CheckErr(err)
-	_, err = os.Stdout.Write(data)
+	_, err = stdOut.Write(data)
 	return err
 }
 
@@ -106,6 +110,6 @@ func asJson(l interface{}) error {
 	data, err := json.Marshal(l)
 	data = append(data, '\n')
 	cobra.CheckErr(err)
-	_, err = os.Stdout.Write(data)
+	_, err = stdOut.Write(data)
 	return err
 }

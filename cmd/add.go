@@ -13,7 +13,7 @@ var addCmd = &cobra.Command{
 	Use:   "add [chart name]",
 	Short: "add a Helm chart as tgz",
 	Args:  cobra.ExactArgs(1),
-	Run:   Add,
+	Run:   AddFn,
 }
 
 func init() {
@@ -23,7 +23,7 @@ func init() {
 	rootCmd.AddCommand(addCmd)
 }
 
-func Add(_ *cobra.Command, args []string) {
+func AddFn(_ *cobra.Command, args []string) {
 	name := args[0]
 	manifests := newManifestService()
 	cobra.CheckErr(manifests.Pull(name, repository, version, addConfig))

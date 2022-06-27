@@ -9,7 +9,7 @@ import (
 var containerResourcesCmd = &cobra.Command{
 	Use:   "container-resources [environment.component]",
 	Short: "show container-resource configuration in ",
-	RunE:  resourcesFn,
+	RunE:  ContainerResourcesFn,
 	Args:  cobra.RangeArgs(0, 1),
 }
 
@@ -17,7 +17,7 @@ func init() {
 	rootCmd.AddCommand(containerResourcesCmd)
 }
 
-func resourcesFn(_ *cobra.Command, args []string) error {
+func ContainerResourcesFn(_ *cobra.Command, args []string) error {
 	if len(args) == 1 {
 		env, comp, err := cfg.DeployIdParts(args[0])
 		if err != nil {

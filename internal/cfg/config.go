@@ -156,7 +156,7 @@ func (s Svc) Init(force bool, template string) error {
 // The first part of the path specifies the config file, e.g.
 // myapp.deploys.staging.imgSrc would target config/myapp.yml
 // and would add or modify the imgSrc value in deploys: staging: imgSrc
-func (s Svc) Set(path string, value string) error {
+func (s Svc) Set(path string, value interface{}) error {
 	var b []byte
 	var err error
 	var conf map[string]interface{}
@@ -328,7 +328,7 @@ func componentName(p string) string {
 	return strings.TrimSuffix(parts[len(parts)-1], Suffix)
 }
 
-func set(m interface{}, path []string, v string) error {
+func set(m interface{}, path []string, v interface{}) error {
 	l := len(path)
 	if l == 0 {
 		return errors.New("0 length path")

@@ -9,7 +9,7 @@ var force bool
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "init simple-ops structure",
-	Run:   Init,
+	Run:   InitFn,
 }
 
 func init() {
@@ -17,7 +17,7 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 }
 
-func Init(cmd *cobra.Command, args []string) {
+func InitFn(_ *cobra.Command, _ []string) {
 	config := newConfigService()
 	cobra.CheckErr(config.Init(force, configTemplate))
 }
