@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"github.com/ghodss/yaml"
 	"github.com/richardjennings/simple-ops/internal/cfg"
+	"github.com/richardjennings/simple-ops/internal/hash"
 	"github.com/richardjennings/simple-ops/internal/manifest"
-	"github.com/richardjennings/simple-ops/internal/manifest/matcher"
+	"github.com/richardjennings/simple-ops/internal/matcher"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -69,6 +70,14 @@ func newManifestService() *manifest.Svc {
 
 func newConfigService() *cfg.Svc {
 	return cfg.NewSvc(afero.NewOsFs(), workdir, log)
+}
+
+func newHashService() *hash.Svc {
+	return hash.NewSvc(afero.NewOsFs(), log)
+}
+
+func newLockService() *cfg.Lock {
+	return cfg.NewLock(afero.NewOsFs(), workdir, log)
 }
 
 func newMatcherService() *matcher.Svc {

@@ -7,11 +7,10 @@
 Simple-Ops is a GitOps repository management tool.
 
 ## Why
-There is a lack of tooling available specifically designed to make managing a GitOps repository simple.
 
-Simple-Ops promotes repeatability and consistency as first class features. The [Verify command](#Verify) rebuilds all deployment
-manifests and compares the result with the current deployment manifests. This provides a convenient mechanism as a CI check or
-pre-receive hook that gives confidence in the correctness of manifests.
+Simple-Ops promotes repeatability and consistency as first class features with the repository acting as a single source of truth.
+The [Verify command](#Verify) rebuilds all deployment manifests and compares the result with the current deployment manifests.
+This provides a convenient mechanism as a CI check or pre-receive hook that gives confidence in the correctness of manifests.
 
 Simple-Ops promotes the use of charts vendored in the repository as tgz files and does not support fetching remote charts at 
 run-time. This 'vendoring' further improves reliability and resilience aiming to make the [Generate command](#Generate) a pure function.
@@ -37,13 +36,14 @@ Simple-Ops can be used via a GitHub Actions implementation at [https://github.co
 ### Add
 Add a chart locally, for example ```simple-ops add sealed-secrets --repo https://bitnami-labs.github.io/sealed-secrets --version 2.1.8```.
 This results in a file at ```chart/sealed-secrets-2.1.8.tgz``` Optionally provide --add-config to generate a config file named
-after the component, e.g. ```config/sealed-secrets.yml``` with content ```chart: sealed-secrets-2.1.8.tgz```
+after the component, e.g. ```config/sealed-secrets.yml``` with content ```chart: sealed-secrets-2.1.8.tgz```.
+The chart version, name, repository and a sha256 digest of the .tgz content are recorded in the simple-ops.lock file.
 
 
 ### Container-Resources
 Lists all Resource configurations for Container specs in generated manifests either globally or per deployment.
 
-### <a id="Verify"></a> Generate
+### Generate
 Renders all Helm charts configured to corresponding deployment directories. 
 Performs labelling and namespace customisations and generates all templated 'with' ancillaries.
 
@@ -62,9 +62,11 @@ components in a deployment pipeline to construct a unified deployment PR.
 Show is a wrapper around ```helm show``` based on Simple-Ops deployments. For example: ```simple-ops show values production.myapp```
 would show the helm chart values associated with the production environment myapp component chart.
 
-### <a id="Verify"></a> Verify
+### Verify
 Verify runs Generate but does not update the deployment directory with any changes. It performs a comparison using
 SHA256 and reports if the `/tmp/deploy` directory content matches ```/my/project/deploy``` content.
+Verify also checks that all tgz charts in the charts directory are represented in the simple-ops.lock file and that the
+sha256 hash of each chart.tgz matches that recorded in the lock file.
 
 #### Note
 Some charts may dynamically generate random data in rendered chart templates. For example Redis creates a random password
@@ -218,6 +220,17 @@ deploy:
                            argocd.argoproj.io/secret-type: repository
 ```
 creates a sealed secrets manifest called argocd-repo-github appended to ```./deploy/example/argo-cd/manifest.yaml```
+
+## Alternatives
+### Argo-CD
+### Cue
+### Flux 2
+### Helm
+### Helmfile
+### Helmwave
+### Jsonnet
+### Kustomize
+### Pulumi
 
 
 ## Key tenants

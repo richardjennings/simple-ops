@@ -1,11 +1,22 @@
-package compare
+package hash
 
 import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"gotest.tools/assert"
+	"path/filepath"
 	"testing"
 )
+
+func TestSvc_SHA256File(t *testing.T) {
+	expected := "39f51ddf0542074ffe55116b2b85ad0abc4a90e51a71347c20bd64b2b26b7bd6"
+	c := NewSvc(afero.NewOsFs(), logrus.New())
+	path, err := filepath.Abs("../manifest/testdata/test-0.1.0.tgz")
+	assert.NilError(t, err)
+	actual, err := c.SHA256File(path)
+	assert.NilError(t, err)
+	assert.Equal(t, actual, expected)
+}
 
 func TestSvc_SHA256(t *testing.T) {
 	c := NewSvc(afero.NewMemMapFs(), logrus.New())

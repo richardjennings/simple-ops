@@ -23,6 +23,7 @@ const (
 	DefaultConfigDirPerm = 0755
 	Suffix               = ".yml"
 	GlobalConfigFile     = "simple-ops.yml"
+	LockFileName         = "simple-ops.lock"
 )
 
 type (
@@ -127,7 +128,7 @@ func (s Svc) Init(force bool, template string) error {
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	if len(f) > 0 && force == false {
+	if len(f) > 0 && !force {
 		return fmt.Errorf("path %s not empty", path)
 	}
 	if err := s.appFs.MkdirAll(filepath.Join(path, ConfPath), DefaultConfigDirPerm); err != nil {
@@ -143,6 +144,9 @@ func (s Svc) Init(force bool, template string) error {
 		return err
 	}
 	if err := s.appFs.WriteFile(filepath.Join(path, GlobalConfigFile), []byte(template), DefaultConfigFsPerm); err != nil {
+		return err
+	}
+	if err := s.appFs.WriteFile(filepath.Join(path, LockFileName), []byte(""), DefaultConfigFsPerm); err != nil {
 		return err
 	}
 	return nil
@@ -177,7 +181,9 @@ func (s Svc) Set(path string, value string) error {
 		return err
 	}
 	c, err := yaml.Marshal(conf)
-
+	if err != nil {
+		return err
+	}
 	return s.appFs.WriteFile(configFile, c, DefaultConfigFsPerm)
 }
 
@@ -283,7 +289,7 @@ func buildDeploys(m map[string]interface{}, component string) (Deploys, error) {
 	// into child deploys
 	delete(m, "deploy")
 	// merge
-	for k, _ := range ds {
+	for k := range ds {
 		ds[k] = MergeMaps(m, ds[k])
 	}
 
@@ -303,7 +309,7 @@ func buildDeploys(m map[string]interface{}, component string) (Deploys, error) {
 
 	// ensure output order
 	var order []string
-	for env, _ := range wrappedDeploys {
+	for env := range wrappedDeploys {
 		order = append(order, env)
 		sort.Strings(order)
 	}

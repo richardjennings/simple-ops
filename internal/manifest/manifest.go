@@ -7,7 +7,7 @@ import (
 	"github.com/ghodss/yaml"
 	cp "github.com/otiai10/copy"
 	"github.com/richardjennings/simple-ops/internal/cfg"
-	"github.com/richardjennings/simple-ops/internal/compare"
+	"github.com/richardjennings/simple-ops/internal/hash"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"helm.sh/helm/v3/pkg/action"
@@ -17,6 +17,7 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"io/fs"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"os"
 	"path/filepath"
 	"sigs.k8s.io/kustomize/api/filters/labels"
 	"sigs.k8s.io/kustomize/api/filters/namespace"
@@ -24,8 +25,6 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/kio"
 	"sort"
 	"strings"
-
-	"os"
 )
 
 const (
@@ -39,7 +38,6 @@ type (
 		client *action.Install
 		wd     string
 		tmp    string
-		wpaths []string
 		log    *logrus.Logger
 	}
 )
@@ -73,7 +71,7 @@ func (s Svc) Verify(deploys cfg.Deploys) (bool, error) {
 	}()
 
 	// do sha comparisons
-	cmp := compare.NewSvc(s.appFs.Fs, s.log)
+	cmp := hash.NewSvc(s.appFs.Fs, s.log)
 
 	tmpHash, err := cmp.SHA256(filepath.Join(s.tmp, cfg.DeployPath))
 	if err != nil {
@@ -123,8 +121,8 @@ func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig boo
 		s.log.Debugf("helm pull: %s\n", out)
 	}
 	s.log.Debugf("saved chart %s-%s.tgz to %s", chartRef, version, p.DestDir)
-	return s.pullAddConfig(addConfig, chartRef, version)
 
+	return s.pullAddConfig(addConfig, chartRef, version)
 }
 
 func (s Svc) pull(repoUrl string, version string) (*action.Pull, error) {
@@ -139,7 +137,7 @@ func (s Svc) pull(repoUrl string, version string) (*action.Pull, error) {
 }
 
 func (s Svc) pullAddConfig(addConfig bool, chartRef string, version string) error {
-	if addConfig == true {
+	if addConfig {
 		conf := "chart: " + chartRef + "-" + version + ".tgz"
 		path := filepath.Join(s.wd, cfg.ConfPath, chartRef+cfg.Suffix)
 		if err := s.appFs.WriteFile(path, []byte(conf), defaultFilePerm); err != nil {
@@ -205,7 +203,7 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 	if deploy.With != nil {
 		// ordered with templates
 		var orderedFiles []string
-		for p, _ := range deploy.With {
+		for p := range deploy.With {
 			orderedFiles = append(orderedFiles, p)
 		}
 		sort.Strings(orderedFiles)
@@ -356,7 +354,7 @@ func (s Svc) loadChart(deploy *cfg.Deploy) (*chart.Chart, error) {
 	// The directory handling code in Helm cannot be persuaded to
 	// use the fs abstraction. @todo better
 	if _, ok := s.appFs.Fs.(*afero.MemMapFs); ok {
-		f, err := s.appFs.Open(s.pathForChart(deploy.Chart))
+		f, err := s.appFs.Open(s.PathForChart(deploy.Chart))
 		if err != nil {
 			return nil, err
 		}
@@ -365,7 +363,7 @@ func (s Svc) loadChart(deploy *cfg.Deploy) (*chart.Chart, error) {
 		}()
 		chrt, err = loader.LoadArchive(f)
 	} else {
-		chrt, err = loader.Load(s.pathForChart(deploy.Chart))
+		chrt, err = loader.Load(s.PathForChart(deploy.Chart))
 		if err != nil {
 			return nil, err
 		}
@@ -433,7 +431,7 @@ func (s Svc) kustomizeLabels(lbls map[string]string, manifest []byte) ([]byte, e
 	return buf.Bytes(), err
 }
 
-func (s Svc) pathForChart(p string) string {
+func (s Svc) PathForChart(p string) string {
 	return s.wd + string(os.PathSeparator) + cfg.ChartsPath + string(os.PathSeparator) + p
 }
 

@@ -1,9 +1,8 @@
 package cmd
 
 import (
-	"errors"
 	"github.com/richardjennings/simple-ops/internal/cfg"
-	"github.com/richardjennings/simple-ops/internal/meta"
+	"github.com/richardjennings/simple-ops/internal/matcher"
 	"github.com/spf13/cobra"
 )
 
@@ -26,47 +25,42 @@ func imagesFn(_ *cobra.Command, args []string) error {
 		}
 		return imagesForDeploy(env, comp)
 	}
-	return images()
+	return allImages()
 }
 
 func imagesForDeploy(environment string, component string) error {
 	config := newConfigService()
 	manifests := newManifestService()
 	match := newMatcherService()
-	metas := meta.NewSvc(config, manifests, match)
-	var res interface{}
-	var err error
-	res, err = metas.ListUniqueImagesForDeploy(environment, component)
-	cobra.CheckErr(err)
-	return response(res)
+	d, err := config.GetDeploy(component, environment)
+	if err != nil {
+		return err
+	}
+	imgs, err := match.Images(manifests.ManifestPathForDeploy(d))
+	if err != nil {
+		return err
+	}
+	return response(imgs)
 }
 
-func images() error {
+func allImages() error {
+	var images matcher.Images
+	var imgs matcher.Images
+	var deploys cfg.Deploys
+	var err error
 	config := newConfigService()
 	manifests := newManifestService()
 	match := newMatcherService()
-	metas := meta.NewSvc(config, manifests, match)
-	var res interface{}
-	var err error
-	res, err = metas.ListAllImagesUnique()
-	cobra.CheckErr(err)
-	return response(res)
-}
-
-type imageListFormatType string
-
-func (o *imageListFormatType) String() string {
-	return string(*o)
-}
-func (o *imageListFormatType) Set(v string) error {
-	switch v {
-	case "unique", "uniquePerFile":
-		*o = imageListFormatType(v)
-	default:
-		return errors.New("supported output types are [yaml, json]")
+	deploys, err = config.Deploys()
+	if err != nil {
+		return err
 	}
-	return nil
-}
-func (o *imageListFormatType) Type() string {
-	return "outputType"
+	for _, d := range deploys {
+		imgs, err = match.Images(manifests.ManifestPathForDeploy(d))
+		if err != nil {
+			return err
+		}
+		images = append(images, imgs...)
+	}
+	return response(images.Unique())
 }
