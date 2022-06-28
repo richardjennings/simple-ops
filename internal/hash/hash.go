@@ -62,10 +62,7 @@ func (s Svc) SHA256(path string) (string, error) {
 				}
 				return err
 			}
-			if err := f.Close(); err != nil {
-				return err
-			}
-			return nil
+			return f.Close()
 		},
 	); err != nil {
 		return "", err
