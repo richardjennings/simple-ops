@@ -108,7 +108,7 @@ func (s Svc) Generate(deploys cfg.Deploys) error {
 
 // Pull adds a tgz chart to charts from repoUrl with chartRef and version
 // addConfig generates a config stub for the chart
-func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig bool) error {
+func (s Svc) Pull(chartRef string, repoUrl string, version string) error {
 	p, err := s.doPull(repoUrl, version)
 	if err != nil {
 		return err

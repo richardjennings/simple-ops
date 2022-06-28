@@ -180,7 +180,7 @@ func TestSvc_ManifestPathForDeploy(t *testing.T) {
 func TestSvc_Pull_Invalid(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	m := NewSvc(fs, "/test", logrus.New())
-	err := m.Pull("a", "b", "c", false)
+	err := m.Pull("a", "b", "c")
 	assert.ErrorContains(t, err, "could not find protocol handler for: ")
 }
 
