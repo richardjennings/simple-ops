@@ -122,9 +122,6 @@ func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig boo
 	}
 	s.log.Debugf("saved chart %s-%s.tgz to %s", chartRef, version, p.DestDir)
 
-	if addConfig {
-		return s.pullAddConfig(chartRef, version)
-	}
 	return nil
 }
 
@@ -139,7 +136,7 @@ func (s Svc) doPull(repoUrl string, version string) (*action.Pull, error) {
 	return p, nil
 }
 
-func (s Svc) pullAddConfig(chartRef string, version string) error {
+func (s Svc) PullAddConfig(chartRef string, version string) error {
 	conf := "chart: " + chartRef + "-" + version + ".tgz"
 	path := filepath.Join(s.wd, cfg.ConfPath, chartRef+cfg.Suffix)
 	if err := s.appFs.WriteFile(path, []byte(conf), defaultFilePerm); err != nil {

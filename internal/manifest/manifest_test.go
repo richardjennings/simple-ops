@@ -200,7 +200,7 @@ func TestSvc_pull(t *testing.T) {
 func TestSvc_pullAddConfig(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	m := NewSvc(fs, "/test", logrus.New())
-	if err := m.pullAddConfig("a", "b"); err != nil {
+	if err := m.PullAddConfig("a", "b"); err != nil {
 		t.Error(err)
 	}
 	b, err := afero.ReadFile(fs, "/test/config/a.yml")

@@ -28,6 +28,9 @@ func AddFn(name string, repository string, version string, addConfig bool, manif
 	if err := manifests.Pull(name, repository, version, addConfig); err != nil {
 		return err
 	}
+	if addConfig {
+		return manifests.PullAddConfig(name, version)
+	}
 	path := manifests.PathForChart(fmt.Sprintf("%s-%s.tgz", name, version))
 	digest, err := cmp.SHA256File(path)
 	if err != nil {
