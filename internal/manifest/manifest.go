@@ -299,10 +299,7 @@ func (s Svc) generateWithToPath(n string, w cfg.With, name string) error {
 	if err := s.appFs.MkdirAll(dir, defaultDirPerm); err != nil {
 		return err
 	}
-	if err := s.appFs.WriteFile(path, b, defaultFilePerm); err != nil {
-		return err
-	}
-	return nil
+	return s.appFs.WriteFile(path, b, defaultFilePerm)
 }
 
 // renderWith uses file at /with/n.yml
