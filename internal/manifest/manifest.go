@@ -109,7 +109,7 @@ func (s Svc) Generate(deploys cfg.Deploys) error {
 // Pull adds a tgz chart to charts from repoUrl with chartRef and version
 // addConfig generates a config stub for the chart
 func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig bool) error {
-	p, err := s.pull(repoUrl, version)
+	p, err := s.doPull(repoUrl, version)
 	if err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig boo
 		return err
 	}
 	if out != "" {
-		s.log.Debugf("helm pull: %s\n", out)
+		s.log.Debugf("helm doPull: %s\n", out)
 	}
 	s.log.Debugf("saved chart %s-%s.tgz to %s", chartRef, version, p.DestDir)
 
@@ -128,7 +128,7 @@ func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig boo
 	return nil
 }
 
-func (s Svc) pull(repoUrl string, version string) (*action.Pull, error) {
+func (s Svc) doPull(repoUrl string, version string) (*action.Pull, error) {
 	c := action.Configuration{}
 	p := action.NewPullWithOpts(action.WithConfig(&c))
 	p.DestDir = s.wd + string(os.PathSeparator) + cfg.ChartsPath

@@ -187,7 +187,7 @@ func TestSvc_Pull_Invalid(t *testing.T) {
 func TestSvc_pull(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	m := NewSvc(fs, "/test", logrus.New())
-	p, err := m.pull("b", "c")
+	p, err := m.doPull("b", "c")
 	if err != nil {
 		t.Error(err)
 	}
