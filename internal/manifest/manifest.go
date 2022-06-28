@@ -60,7 +60,7 @@ func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
 // file generated via with => path.
 func (s Svc) Verify(deploys cfg.Deploys) (bool, error) {
 	var err error
-	err = s.generate(deploys)
+	err = s.doGenerate(deploys)
 	if err != nil {
 		return false, err
 	}
@@ -91,7 +91,7 @@ func (s Svc) Verify(deploys cfg.Deploys) (bool, error) {
 // process completes successfully.
 func (s Svc) Generate(deploys cfg.Deploys) error {
 	var err error
-	err = s.generate(deploys)
+	err = s.doGenerate(deploys)
 	defer func() {
 		if err != nil {
 			err = s.appFs.RemoveAll(s.tmp)
@@ -149,7 +149,7 @@ func (s Svc) pullAddConfig(chartRef string, version string) error {
 	return nil
 }
 
-func (s *Svc) generate(deploys cfg.Deploys) error {
+func (s *Svc) doGenerate(deploys cfg.Deploys) error {
 	var err error
 	s.tmp, err = s.appFs.TempDir("", "simple-ops-")
 	if err != nil {
