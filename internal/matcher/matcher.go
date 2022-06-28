@@ -50,7 +50,7 @@ func (m Svc) Match(filePath string, matchers []Matcher) (Matches, error) {
 	return m.matches(nodes, matchers)
 }
 
-func (_ Svc) matches(nodes []*yaml.RNode, matchers []Matcher) (Matches, error) {
+func (Svc) matches(nodes []*yaml.RNode, matchers []Matcher) (Matches, error) {
 	var matches Matches
 	for _, match := range matchers {
 		kind := match.kind
