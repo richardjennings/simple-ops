@@ -122,7 +122,10 @@ func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig boo
 	}
 	s.log.Debugf("saved chart %s-%s.tgz to %s", chartRef, version, p.DestDir)
 
-	return s.pullAddConfig(addConfig, chartRef, version)
+	if addConfig {
+		return s.pullAddConfig(chartRef, version)
+	}
+	return nil
 }
 
 func (s Svc) pull(repoUrl string, version string) (*action.Pull, error) {
@@ -136,15 +139,13 @@ func (s Svc) pull(repoUrl string, version string) (*action.Pull, error) {
 	return p, nil
 }
 
-func (s Svc) pullAddConfig(addConfig bool, chartRef string, version string) error {
-	if addConfig {
-		conf := "chart: " + chartRef + "-" + version + ".tgz"
-		path := filepath.Join(s.wd, cfg.ConfPath, chartRef+cfg.Suffix)
-		if err := s.appFs.WriteFile(path, []byte(conf), defaultFilePerm); err != nil {
-			return err
-		}
-		s.log.Debugf("added config file for chart %s-%s.tgz", chartRef, version)
+func (s Svc) pullAddConfig(chartRef string, version string) error {
+	conf := "chart: " + chartRef + "-" + version + ".tgz"
+	path := filepath.Join(s.wd, cfg.ConfPath, chartRef+cfg.Suffix)
+	if err := s.appFs.WriteFile(path, []byte(conf), defaultFilePerm); err != nil {
+		return err
 	}
+	s.log.Debugf("added config file for chart %s-%s.tgz", chartRef, version)
 	return nil
 }
 
