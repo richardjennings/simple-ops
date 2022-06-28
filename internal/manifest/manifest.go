@@ -383,7 +383,7 @@ type Namespace struct {
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 }
 
-func (s Svc) createNamespaceManifest(deploy *cfg.Deploy) ([]byte, error) {
+func (_ Svc) createNamespaceManifest(deploy *cfg.Deploy) ([]byte, error) {
 	ns := Namespace{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -407,7 +407,7 @@ func (s Svc) createNamespaceManifest(deploy *cfg.Deploy) ([]byte, error) {
 	return bytes.Replace(yml, []byte("creationTimestamp: null"), []byte(""), 1), nil
 }
 
-func (s Svc) kustomizeNamespace(deploy *cfg.Deploy, manifest []byte) ([]byte, error) {
+func (_ Svc) kustomizeNamespace(deploy *cfg.Deploy, manifest []byte) ([]byte, error) {
 	buf := bytes.Buffer{}
 	err := kio.Pipeline{
 		Inputs:  []kio.Reader{&kio.ByteReader{Reader: bytes.NewBuffer(manifest)}},
@@ -417,7 +417,7 @@ func (s Svc) kustomizeNamespace(deploy *cfg.Deploy, manifest []byte) ([]byte, er
 	return buf.Bytes(), err
 }
 
-func (s Svc) kustomizeLabels(lbls map[string]string, manifest []byte) ([]byte, error) {
+func (_ Svc) kustomizeLabels(lbls map[string]string, manifest []byte) ([]byte, error) {
 	buf := bytes.Buffer{}
 	fslice := types.FsSlice{
 		{Path: "metadata/labels", CreateIfNotPresent: true},
