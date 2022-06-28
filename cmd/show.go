@@ -8,8 +8,6 @@ import (
 	"io"
 )
 
-var showType show.Type = "values"
-
 var showCmd = &cobra.Command{
 	Use:   "show <type> <environment.component>",
 	Short: "show details from a deploy config helm chart",
@@ -19,7 +17,7 @@ var showCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		return ShowFn(args[0], env, comp, cmd.OutOrStdout())
+		return ShowFn(args[0], env, comp, cmd.OutOrStdout(), newConfigService())
 	},
 }
 
@@ -27,11 +25,7 @@ func init() {
 	rootCmd.AddCommand(showCmd)
 }
 
-func ShowFn(thing string, environment string, component string, w io.Writer) error {
-	if err := showType.Set(thing); err != nil {
-		return err
-	}
-	config := newConfigService()
+func ShowFn(thing string, environment string, component string, w io.Writer, config *cfg.Svc) error {
 	deploy, err := config.GetDeploy(component, environment)
 	if err != nil {
 		return err
@@ -40,7 +34,7 @@ func ShowFn(thing string, environment string, component string, w io.Writer) err
 	if err != nil {
 		return err
 	}
-	output, err := show.Show(chartPath, showType)
+	output, err := show.Show(chartPath, thing)
 	if err != nil {
 		return err
 	}

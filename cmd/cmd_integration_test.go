@@ -16,10 +16,10 @@ func Test_Integration(t *testing.T) {
 	var o, e, expected string
 	i := newIntegration(t)
 	i.testSetup()
-	defer i.testTearDown()
+	defer i.testTearDown(i.workDir)
 
 	// init
-	o, e = i.Init()
+	o, e = i.Init(false)
 	assert.Assert(t, o == "" && e == "")
 
 	// add
@@ -40,7 +40,7 @@ func Test_Integration(t *testing.T) {
 	assert.Assert(t, o == "" && e == "")
 
 	// set enable namespace inject bool
-	stdin = false // the init fn is not called to set the value of stdin back to false ...
+	//stdin = false // the init fn is not called to set the value of stdin back to false ...
 	o, e = i.Set("metrics-server.deploy.test.namespace.inject", "true", "bool", false)
 	assert.Assert(t, o == "" && e == "")
 
@@ -92,10 +92,11 @@ func Test_Integration(t *testing.T) {
 }
 
 type integration struct {
-	in  *bytes.Buffer
-	out *bytes.Buffer
-	err *bytes.Buffer
-	t   *testing.T
+	in      *bytes.Buffer
+	out     *bytes.Buffer
+	err     *bytes.Buffer
+	t       *testing.T
+	workDir string
 }
 
 func newIntegration(t *testing.T) integration {
@@ -104,6 +105,7 @@ func newIntegration(t *testing.T) integration {
 		bytes.NewBuffer(nil),
 		bytes.NewBuffer(nil),
 		t,
+		"",
 	}
 }
 
@@ -113,7 +115,7 @@ func (i integration) resetBuffers() {
 	i.err.Reset()
 }
 
-func (i integration) testSetup() {
+func (i *integration) testSetup() {
 	// set logger out to buffer
 	log.SetOutput(i.out)
 	// create tmp in memory working directory
@@ -123,18 +125,19 @@ func (i integration) testSetup() {
 	}
 	i.t.Logf("using tmp dir %s", path)
 	// global used by newSvc functions ...
-	workdir = path // or should it be set via -w t.workdir flag ?
+	i.workDir = path
+	//flags.workdir = path // or should it be set via -w t.workdir flag ?
 	rootCmd.SetOut(i.out)
 	rootCmd.SetIn(i.in)
 	rootCmd.SetErr(i.err)
 }
 
-func (i integration) testTearDown() {
-	err := os.RemoveAll(workdir)
+func (i integration) testTearDown(path string) {
+	err := os.RemoveAll(path)
 	if err != nil {
 		i.t.Fatal(err)
 	}
-	i.t.Logf("removed tmp dir %s", workdir)
+	i.t.Logf("removed tmp dir %s", path)
 }
 
 func (i integration) runCmd(cmd *cobra.Command) (string, string) {
@@ -145,13 +148,15 @@ func (i integration) runCmd(cmd *cobra.Command) (string, string) {
 	return i.out.String(), i.err.String()
 }
 
-func (i integration) Init() (string, string) {
-	rootCmd.SetArgs([]string{"init"})
+func (i integration) Init(force bool) (string, string) {
+	defaultFlags()
+	rootCmd.SetArgs([]string{"init", "-w", i.workDir})
 	return i.runCmd(rootCmd)
 }
 
 func (i integration) Add(name string, repository string, version string, addConfig bool) (string, string) {
-	args := []string{"add", name, "--repo", repository, "--version", version}
+	defaultFlags()
+	args := []string{"add", name, "--repo", repository, "--version", version, "-w", i.workDir}
 	if addConfig {
 		args = append(args, "--add-config")
 	}
@@ -160,7 +165,8 @@ func (i integration) Add(name string, repository string, version string, addConf
 }
 
 func (i integration) Set(key string, value string, as string, stdin bool) (string, string) {
-	args := []string{"set", "--type", as, key}
+	defaultFlags()
+	args := []string{"set", "--type", as, key, "-w", i.workDir}
 	if !stdin {
 		args = append(args, value)
 	} else {
@@ -171,12 +177,14 @@ func (i integration) Set(key string, value string, as string, stdin bool) (strin
 }
 
 func (i integration) Generate() (string, string) {
-	rootCmd.SetArgs([]string{"generate"})
+	defaultFlags()
+	rootCmd.SetArgs([]string{"generate", "-w", i.workDir})
 	return i.runCmd(rootCmd)
 }
 
 func (i integration) ContainerResources(id string, outputType string) (string, string) {
-	args := []string{"container-resources", "--output", outputType}
+	defaultFlags()
+	args := []string{"container-resources", "--output", outputType, "-w", i.workDir}
 	if id != "" {
 		args = append(args, id)
 	}
@@ -185,7 +193,8 @@ func (i integration) ContainerResources(id string, outputType string) (string, s
 }
 
 func (i integration) Images(id string, outputType string) (string, string) {
-	args := []string{"images", "--output", outputType}
+	defaultFlags()
+	args := []string{"images", "--output", outputType, "-w", i.workDir}
 	if id != "" {
 		args = append(args, id)
 	}
@@ -194,16 +203,19 @@ func (i integration) Images(id string, outputType string) (string, string) {
 }
 
 func (i integration) Show(thing string, id string) (string, string) {
-	rootCmd.SetArgs([]string{"show", thing, id})
+	defaultFlags()
+	rootCmd.SetArgs([]string{"show", thing, id, "-w", i.workDir})
 	return i.runCmd(rootCmd)
 }
 
 func (i integration) Verify() (string, string) {
-	rootCmd.SetArgs([]string{"verify"})
+	defaultFlags()
+	rootCmd.SetArgs([]string{"verify", "-w", i.workDir})
 	return i.runCmd(rootCmd)
 }
 
 func (i integration) Version() (string, string) {
-	rootCmd.SetArgs([]string{"version"})
+	defaultFlags()
+	rootCmd.SetArgs([]string{"version", "-w", i.workDir})
 	return i.runCmd(rootCmd)
 }

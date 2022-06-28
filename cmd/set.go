@@ -2,13 +2,11 @@ package cmd
 
 import (
 	"errors"
+	"github.com/richardjennings/simple-ops/internal/cfg"
 	"github.com/spf13/cobra"
 	"io/ioutil"
 	"strconv"
 )
-
-var stdin bool
-var setType string
 
 var setCmd = &cobra.Command{
 	Use:   "set",
@@ -16,7 +14,7 @@ var setCmd = &cobra.Command{
 	Args:  cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var value string
-		if stdin {
+		if flags.setStdin {
 			v, err := ioutil.ReadAll(cmd.InOrStdin())
 			if err != nil {
 				return err
@@ -28,20 +26,19 @@ var setCmd = &cobra.Command{
 			}
 			value = args[1]
 		}
-		return SetFn(args[0], value, setType)
+		return SetFn(args[0], value, flags.setType, newConfigService())
 	},
 }
 
 func init() {
-	setCmd.PersistentFlags().BoolVar(&stdin, "stdin", false, "")
-	setCmd.PersistentFlags().StringVar(&setType, "type", "", "--type [string, bool, int]")
+	setCmd.PersistentFlags().BoolVar(&flags.setStdin, "stdin", false, "")
+	setCmd.PersistentFlags().StringVar(&flags.setType, "type", "", "--type [string, bool, int]")
 	rootCmd.AddCommand(setCmd)
 }
 
-func SetFn(path string, value string, setType string) error {
+func SetFn(path string, value string, setType string, config *cfg.Svc) error {
 	var v interface{}
 	var err error
-	config := newConfigService()
 	switch setType {
 	case "bool":
 		v, err = strconv.ParseBool(value)

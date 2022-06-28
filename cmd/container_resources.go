@@ -12,7 +12,14 @@ var containerResourcesCmd = &cobra.Command{
 	Short: "show container-resource configuration in ",
 	Args:  cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ContainerResourcesFn(cmd, args, cmd.OutOrStdout())
+		if len(args) == 1 {
+			env, comp, err := cfg.DeployIdParts(args[0])
+			if err != nil {
+				return err
+			}
+			return ContainerResourcesForDeploy(comp, env, cmd.OutOrStdout(), newConfigService(), newMatcherService())
+		}
+		return ContainerResourcesForDeploys(cmd.OutOrStdout(), newConfigService(), newMatcherService())
 	},
 }
 
@@ -20,20 +27,7 @@ func init() {
 	rootCmd.AddCommand(containerResourcesCmd)
 }
 
-func ContainerResourcesFn(_ *cobra.Command, args []string, w io.Writer) error {
-	if len(args) == 1 {
-		env, comp, err := cfg.DeployIdParts(args[0])
-		if err != nil {
-			return err
-		}
-		return containerResourcesForDeploy(comp, env, w)
-	}
-	return containerResourcesForDeploys(w)
-}
-
-func containerResourcesForDeploy(compName string, envName string, w io.Writer) error {
-	config := newConfigService()
-	match := newMatcherService()
+func ContainerResourcesForDeploy(compName string, envName string, w io.Writer, config *cfg.Svc, match *matcher.Svc) error {
 	deploy, err := config.GetDeploy(compName, envName)
 	if err != nil {
 		return err
@@ -54,10 +48,8 @@ type DeployContainerResources struct {
 	Resources matcher.ContainerResources
 }
 
-func containerResourcesForDeploys(w io.Writer) error {
+func ContainerResourcesForDeploys(w io.Writer, config *cfg.Svc, match *matcher.Svc) error {
 	var result []DeployContainerResources
-	config := newConfigService()
-	match := newMatcherService()
 	deploys, err := config.Deploys()
 	if err != nil {
 		return err
