@@ -4,33 +4,30 @@ import (
 	"github.com/richardjennings/simple-ops/internal/cfg"
 	"github.com/richardjennings/simple-ops/internal/matcher"
 	"github.com/spf13/cobra"
+	"io"
 )
 
 var containerResourcesCmd = &cobra.Command{
 	Use:   "container-resources [environment.component]",
 	Short: "show container-resource configuration in ",
-	RunE:  resourcesFn,
 	Args:  cobra.RangeArgs(0, 1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 1 {
+			env, comp, err := cfg.DeployIdParts(args[0])
+			if err != nil {
+				return err
+			}
+			return ContainerResourcesForDeploy(comp, env, cmd.OutOrStdout(), newConfigService(), newMatcherService())
+		}
+		return ContainerResourcesForDeploys(cmd.OutOrStdout(), newConfigService(), newMatcherService())
+	},
 }
 
 func init() {
 	rootCmd.AddCommand(containerResourcesCmd)
 }
 
-func resourcesFn(_ *cobra.Command, args []string) error {
-	if len(args) == 1 {
-		env, comp, err := cfg.DeployIdParts(args[0])
-		if err != nil {
-			return err
-		}
-		return containerResourcesForDeploy(comp, env)
-	}
-	return containerResourcesForDeploys()
-}
-
-func containerResourcesForDeploy(compName string, envName string) error {
-	config := newConfigService()
-	match := newMatcherService()
+func ContainerResourcesForDeploy(compName string, envName string, w io.Writer, config *cfg.Svc, match *matcher.Svc) error {
 	deploy, err := config.GetDeploy(compName, envName)
 	if err != nil {
 		return err
@@ -43,7 +40,7 @@ func containerResourcesForDeploy(compName string, envName string) error {
 	if err != nil {
 		return err
 	}
-	return response(res)
+	return response(res, w)
 }
 
 type DeployContainerResources struct {
@@ -51,10 +48,8 @@ type DeployContainerResources struct {
 	Resources matcher.ContainerResources
 }
 
-func containerResourcesForDeploys() error {
+func ContainerResourcesForDeploys(w io.Writer, config *cfg.Svc, match *matcher.Svc) error {
 	var result []DeployContainerResources
-	config := newConfigService()
-	match := newMatcherService()
 	deploys, err := config.Deploys()
 	if err != nil {
 		return err
@@ -70,5 +65,5 @@ func containerResourcesForDeploys() error {
 		}
 		result = append(result, DeployContainerResources{Name: d.Id(), Resources: res})
 	}
-	return response(result)
+	return response(result, w)
 }

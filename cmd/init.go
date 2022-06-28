@@ -1,25 +1,25 @@
 package cmd
 
 import (
+	"github.com/richardjennings/simple-ops/internal/cfg"
 	"github.com/spf13/cobra"
 )
-
-var force bool
 
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "init simple-ops structure",
-	Run:   Init,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		return InitFn(flags.initForce, newConfigService())
+	},
 }
 
 func init() {
-	initCmd.PersistentFlags().BoolVar(&force, "force", false, "force init")
+	initCmd.PersistentFlags().BoolVar(&flags.initForce, "force", false, "force init")
 	rootCmd.AddCommand(initCmd)
 }
 
-func Init(cmd *cobra.Command, args []string) {
-	config := newConfigService()
-	cobra.CheckErr(config.Init(force, configTemplate))
+func InitFn(force bool, config *cfg.Svc) error {
+	return config.Init(force, configTemplate)
 }
 
 var configTemplate = `

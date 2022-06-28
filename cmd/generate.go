@@ -8,19 +8,23 @@ import (
 var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "generate deployment manifests from config",
-	Run:   Generate,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return GenerateFn()
+	},
 }
 
 func init() {
 	rootCmd.AddCommand(generateCmd)
 }
 
-func Generate(_ *cobra.Command, _ []string) {
+func GenerateFn() error {
 	var deploys cfg.Deploys
 	var err error
 	config := newConfigService()
 	manifests := newManifestService()
 	deploys, err = config.Deploys()
-	cobra.CheckErr(err)
-	cobra.CheckErr(manifests.Generate(deploys))
+	if err != nil {
+		return err
+	}
+	return manifests.Generate(deploys)
 }

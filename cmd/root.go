@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/ghodss/yaml"
 	"github.com/richardjennings/simple-ops/internal/cfg"
@@ -12,12 +11,25 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"os"
+	"io"
 )
 
-var output outputType = "yaml"
-var verbosity string
-var workdir string
+type options struct {
+	verbosity     string
+	workdir       string
+	output        string
+	addRepository string
+	addVersion    string
+	addConfig     bool
+	initForce     bool
+	setStdin      bool
+	setType       string
+}
+
+var flags options
+
+// the FS to use
+var fs afero.Fs
 
 var rootCmd = &cobra.Command{
 	Use:   "simple-ops",
@@ -26,37 +38,35 @@ var rootCmd = &cobra.Command{
 
 var log = logrus.New()
 
-type outputType string
-
-func (o *outputType) String() string {
-	return string(*o)
-}
-func (o *outputType) Set(v string) error {
-	switch v {
-	case "yaml", "json":
-		*o = outputType(v)
-	default:
-		return errors.New("supported output types are [yaml, json]")
-	}
-	return nil
-}
-func (o *outputType) Type() string {
-	return "outputType"
+// reset flag option values to defaults allowing for commands to
+// be used with flags multiple times without side effects
+func defaultFlags() {
+	flags.verbosity = "error"
+	flags.workdir = "."
+	flags.output = "yaml"
+	flags.addRepository = ""
+	flags.addVersion = ""
+	flags.addConfig = false
+	flags.initForce = false
+	flags.setStdin = false
+	flags.setType = "string"
 }
 
 func init() {
+	defaultFlags()
 	cobra.OnInitialize(initConfig)
-	imageCmd.PersistentFlags().Var(&output, "output", "output [yaml, json]")
-	rootCmd.PersistentFlags().StringVarP(&verbosity, "verbosity", "v", logrus.ErrorLevel.String(), "")
-	rootCmd.PersistentFlags().StringVarP(&workdir, "workdir", "w", ".", "")
+	rootCmd.PersistentFlags().StringVarP(&flags.output, "output", "o", "yaml", "output [yaml, json]")
+	rootCmd.PersistentFlags().StringVarP(&flags.verbosity, "verbosity", "v", logrus.ErrorLevel.String(), "")
+	rootCmd.PersistentFlags().StringVarP(&flags.workdir, "workdir", "w", ".", "")
+	log.SetOutput(rootCmd.OutOrStdout())
 }
 
 func initConfig() {
-	lvl, err := logrus.ParseLevel(verbosity)
+	fs = afero.NewOsFs()
+	lvl, err := logrus.ParseLevel(flags.verbosity)
 	cobra.CheckErr(err)
 	log.SetLevel(lvl)
 	log.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
-	log.SetOutput(os.Stdout)
 }
 
 // Execute executes the root command.
@@ -65,47 +75,47 @@ func Execute() error {
 }
 
 func newManifestService() *manifest.Svc {
-	return manifest.NewSvc(afero.NewOsFs(), workdir, log)
+	return manifest.NewSvc(fs, flags.workdir, log)
 }
 
 func newConfigService() *cfg.Svc {
-	return cfg.NewSvc(afero.NewOsFs(), workdir, log)
+	return cfg.NewSvc(fs, flags.workdir, log)
 }
 
 func newHashService() *hash.Svc {
-	return hash.NewSvc(afero.NewOsFs(), log)
+	return hash.NewSvc(fs, log)
 }
 
 func newLockService() *cfg.Lock {
-	return cfg.NewLock(afero.NewOsFs(), workdir, log)
+	return cfg.NewLock(fs, flags.workdir, log)
 }
 
 func newMatcherService() *matcher.Svc {
-	return matcher.NewSvc(afero.NewOsFs(), workdir, log)
+	return matcher.NewSvc(fs, flags.workdir, log)
 }
 
-func response(l interface{}) error {
-	switch output {
+func response(l interface{}, w io.Writer) error {
+	switch flags.output {
 	case "yaml":
-		return asYaml(l)
+		return asYaml(l, w)
 	case "json":
-		return asJson(l)
+		return asJson(l, w)
 	default:
-		return fmt.Errorf("output type %s not recognised", output)
+		return fmt.Errorf("output type %s not recognised", flags.output)
 	}
 }
 
-func asYaml(l interface{}) error {
+func asYaml(l interface{}, w io.Writer) error {
 	data, err := yaml.Marshal(l)
 	cobra.CheckErr(err)
-	_, err = os.Stdout.Write(data)
+	_, err = w.Write(data)
 	return err
 }
 
-func asJson(l interface{}) error {
+func asJson(l interface{}, w io.Writer) error {
 	data, err := json.Marshal(l)
 	data = append(data, '\n')
 	cobra.CheckErr(err)
-	_, err = os.Stdout.Write(data)
+	_, err = w.Write(data)
 	return err
 }

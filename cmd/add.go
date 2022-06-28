@@ -2,35 +2,36 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/richardjennings/simple-ops/internal/cfg"
+	"github.com/richardjennings/simple-ops/internal/hash"
+	"github.com/richardjennings/simple-ops/internal/manifest"
 	"github.com/spf13/cobra"
 )
-
-var repository string
-var version string
-var addConfig bool
 
 var addCmd = &cobra.Command{
 	Use:   "add [chart name]",
 	Short: "add a Helm chart as tgz",
 	Args:  cobra.ExactArgs(1),
-	Run:   Add,
+	RunE: func(_ *cobra.Command, args []string) error {
+		return AddFn(args[0], flags.addRepository, flags.addVersion, flags.addConfig, newManifestService(), newHashService(), newLockService())
+	},
 }
 
 func init() {
-	addCmd.PersistentFlags().StringVar(&repository, "repo", "", "")
-	addCmd.PersistentFlags().StringVar(&version, "version", "", "")
-	addCmd.PersistentFlags().BoolVar(&addConfig, "add-config", false, "")
+	addCmd.PersistentFlags().StringVar(&flags.addRepository, "repo", "", "")
+	addCmd.PersistentFlags().StringVar(&flags.addVersion, "version", "", "")
+	addCmd.PersistentFlags().BoolVar(&flags.addConfig, "add-config", false, "")
 	rootCmd.AddCommand(addCmd)
 }
 
-func Add(_ *cobra.Command, args []string) {
-	name := args[0]
-	manifests := newManifestService()
-	cobra.CheckErr(manifests.Pull(name, repository, version, addConfig))
+func AddFn(name string, repository string, version string, addConfig bool, manifests *manifest.Svc, cmp *hash.Svc, lock *cfg.Lock) error {
+	if err := manifests.Pull(name, repository, version, addConfig); err != nil {
+		return err
+	}
 	path := manifests.PathForChart(fmt.Sprintf("%s-%s.tgz", name, version))
-	cmp := newHashService()
-	hash, err := cmp.SHA256File(path)
-	cobra.CheckErr(err)
-	lock := newLockService()
-	cobra.CheckErr(lock.AddChart(name, repository, version, hash))
+	digest, err := cmp.SHA256File(path)
+	if err != nil {
+		return err
+	}
+	return lock.AddChart(name, repository, version, digest)
 }

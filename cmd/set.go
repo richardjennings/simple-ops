@@ -2,38 +2,52 @@ package cmd
 
 import (
 	"errors"
+	"github.com/richardjennings/simple-ops/internal/cfg"
 	"github.com/spf13/cobra"
 	"io/ioutil"
-	"os"
+	"strconv"
 )
-
-var stdin bool
 
 var setCmd = &cobra.Command{
 	Use:   "set",
 	Short: "modify configuration",
 	Args:  cobra.RangeArgs(1, 2),
-	Run:   Set,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		var value string
+		if flags.setStdin {
+			v, err := ioutil.ReadAll(cmd.InOrStdin())
+			if err != nil {
+				return err
+			}
+			value = string(v)
+		} else {
+			if len(args) != 2 {
+				return errors.New("expected 2 arguments")
+			}
+			value = args[1]
+		}
+		return SetFn(args[0], value, flags.setType, newConfigService())
+	},
 }
 
 func init() {
-	setCmd.PersistentFlags().BoolVar(&stdin, "stdin", false, "")
+	setCmd.PersistentFlags().BoolVar(&flags.setStdin, "stdin", false, "")
+	setCmd.PersistentFlags().StringVar(&flags.setType, "type", "", "--type [string, bool, int]")
 	rootCmd.AddCommand(setCmd)
 }
 
-func Set(cmd *cobra.Command, args []string) {
-	var value string
-	path := args[0]
-	config := newConfigService()
-	if stdin {
-		v, err := ioutil.ReadAll(os.Stdin)
+func SetFn(path string, value string, setType string, config *cfg.Svc) error {
+	var v interface{}
+	var err error
+	switch setType {
+	case "bool":
+		v, err = strconv.ParseBool(value)
 		cobra.CheckErr(err)
-		value = string(v)
-	} else {
-		if len(args) != 2 {
-			cobra.CheckErr(errors.New("expected 2 arguments"))
-		}
-		value = args[1]
+	case "int":
+		v, err = strconv.Atoi(value)
+		cobra.CheckErr(err)
+	default:
+		v = value
 	}
-	cobra.CheckErr(config.Set(path, value))
+	return config.Set(path, v)
 }
