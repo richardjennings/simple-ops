@@ -60,7 +60,7 @@ func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
 // file generated via with => path.
 func (s Svc) Verify(deploys cfg.Deploys) (bool, error) {
 	var err error
-	err = s.generate(deploys)
+	err = s.doGenerate(deploys)
 	if err != nil {
 		return false, err
 	}
@@ -91,7 +91,7 @@ func (s Svc) Verify(deploys cfg.Deploys) (bool, error) {
 // process completes successfully.
 func (s Svc) Generate(deploys cfg.Deploys) error {
 	var err error
-	err = s.generate(deploys)
+	err = s.doGenerate(deploys)
 	defer func() {
 		if err != nil {
 			err = s.appFs.RemoveAll(s.tmp)
@@ -108,8 +108,8 @@ func (s Svc) Generate(deploys cfg.Deploys) error {
 
 // Pull adds a tgz chart to charts from repoUrl with chartRef and version
 // addConfig generates a config stub for the chart
-func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig bool) error {
-	p, err := s.pull(repoUrl, version)
+func (s Svc) Pull(chartRef string, repoUrl string, version string) error {
+	p, err := s.doPull(repoUrl, version)
 	if err != nil {
 		return err
 	}
@@ -118,14 +118,14 @@ func (s Svc) Pull(chartRef string, repoUrl string, version string, addConfig boo
 		return err
 	}
 	if out != "" {
-		s.log.Debugf("helm pull: %s\n", out)
+		s.log.Debugf("helm doPull: %s\n", out)
 	}
 	s.log.Debugf("saved chart %s-%s.tgz to %s", chartRef, version, p.DestDir)
 
-	return s.pullAddConfig(addConfig, chartRef, version)
+	return nil
 }
 
-func (s Svc) pull(repoUrl string, version string) (*action.Pull, error) {
+func (s Svc) doPull(repoUrl string, version string) (*action.Pull, error) {
 	c := action.Configuration{}
 	p := action.NewPullWithOpts(action.WithConfig(&c))
 	p.DestDir = s.wd + string(os.PathSeparator) + cfg.ChartsPath
@@ -136,19 +136,17 @@ func (s Svc) pull(repoUrl string, version string) (*action.Pull, error) {
 	return p, nil
 }
 
-func (s Svc) pullAddConfig(addConfig bool, chartRef string, version string) error {
-	if addConfig {
-		conf := "chart: " + chartRef + "-" + version + ".tgz"
-		path := filepath.Join(s.wd, cfg.ConfPath, chartRef+cfg.Suffix)
-		if err := s.appFs.WriteFile(path, []byte(conf), defaultFilePerm); err != nil {
-			return err
-		}
-		s.log.Debugf("added config file for chart %s-%s.tgz", chartRef, version)
+func (s Svc) PullAddConfig(chartRef string, version string) error {
+	conf := "chart: " + chartRef + "-" + version + ".tgz"
+	path := filepath.Join(s.wd, cfg.ConfPath, chartRef+cfg.Suffix)
+	if err := s.appFs.WriteFile(path, []byte(conf), defaultFilePerm); err != nil {
+		return err
 	}
+	s.log.Debugf("added config file for chart %s-%s.tgz", chartRef, version)
 	return nil
 }
 
-func (s *Svc) generate(deploys cfg.Deploys) error {
+func (s *Svc) doGenerate(deploys cfg.Deploys) error {
 	var err error
 	s.tmp, err = s.appFs.TempDir("", "simple-ops-")
 	if err != nil {
@@ -299,10 +297,7 @@ func (s Svc) generateWithToPath(n string, w cfg.With, name string) error {
 	if err := s.appFs.MkdirAll(dir, defaultDirPerm); err != nil {
 		return err
 	}
-	if err := s.appFs.WriteFile(path, b, defaultFilePerm); err != nil {
-		return err
-	}
-	return nil
+	return s.appFs.WriteFile(path, b, defaultFilePerm)
 }
 
 // renderWith uses file at /with/n.yml
@@ -383,7 +378,7 @@ type Namespace struct {
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 }
 
-func (s Svc) createNamespaceManifest(deploy *cfg.Deploy) ([]byte, error) {
+func (Svc) createNamespaceManifest(deploy *cfg.Deploy) ([]byte, error) {
 	ns := Namespace{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -407,7 +402,7 @@ func (s Svc) createNamespaceManifest(deploy *cfg.Deploy) ([]byte, error) {
 	return bytes.Replace(yml, []byte("creationTimestamp: null"), []byte(""), 1), nil
 }
 
-func (s Svc) kustomizeNamespace(deploy *cfg.Deploy, manifest []byte) ([]byte, error) {
+func (Svc) kustomizeNamespace(deploy *cfg.Deploy, manifest []byte) ([]byte, error) {
 	buf := bytes.Buffer{}
 	err := kio.Pipeline{
 		Inputs:  []kio.Reader{&kio.ByteReader{Reader: bytes.NewBuffer(manifest)}},
@@ -417,7 +412,7 @@ func (s Svc) kustomizeNamespace(deploy *cfg.Deploy, manifest []byte) ([]byte, er
 	return buf.Bytes(), err
 }
 
-func (s Svc) kustomizeLabels(lbls map[string]string, manifest []byte) ([]byte, error) {
+func (Svc) kustomizeLabels(lbls map[string]string, manifest []byte) ([]byte, error) {
 	buf := bytes.Buffer{}
 	fslice := types.FsSlice{
 		{Path: "metadata/labels", CreateIfNotPresent: true},

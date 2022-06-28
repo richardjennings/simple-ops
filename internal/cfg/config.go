@@ -119,37 +119,36 @@ func (s Svc) ChartPath(d Deploy) (string, error) {
 	return filepath.Abs(filepath.Join(s.wd, ChartsPath, d.Chart))
 }
 
-// Init creates simple-ops directory and structure in path if
+func (s Svc) Init(template string) error {
+	if err := s.appFs.MkdirAll(filepath.Join(s.wd, ConfPath), DefaultConfigDirPerm); err != nil {
+		return err
+	}
+	if err := s.appFs.MkdirAll(filepath.Join(s.wd, DeployPath), DefaultConfigDirPerm); err != nil {
+		return err
+	}
+	if err := s.appFs.MkdirAll(filepath.Join(s.wd, ChartsPath), DefaultConfigDirPerm); err != nil {
+		return err
+	}
+	if err := s.appFs.MkdirAll(filepath.Join(s.wd, WithPath), DefaultConfigDirPerm); err != nil {
+		return err
+	}
+	if err := s.appFs.WriteFile(filepath.Join(s.wd, GlobalConfigFile), []byte(template), DefaultConfigFsPerm); err != nil {
+		return err
+	}
+	return s.appFs.WriteFile(filepath.Join(s.wd, LockFileName), []byte(""), DefaultConfigFsPerm)
+}
+
+// InitIfEmpty creates simple-ops directory and structure in path if
 // directory not exists or empty.
-// force generates directory structure when path not empty
-func (s Svc) Init(force bool, template string) error {
-	path := s.wd
-	f, err := s.appFs.ReadDir(path)
+func (s Svc) InitIfEmpty(template string) error {
+	f, err := s.appFs.ReadDir(s.wd)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	if len(f) > 0 && !force {
-		return fmt.Errorf("path %s not empty", path)
+	if len(f) > 0 {
+		return fmt.Errorf("path %s not empty", s.wd)
 	}
-	if err := s.appFs.MkdirAll(filepath.Join(path, ConfPath), DefaultConfigDirPerm); err != nil {
-		return err
-	}
-	if err := s.appFs.MkdirAll(filepath.Join(path, DeployPath), DefaultConfigDirPerm); err != nil {
-		return err
-	}
-	if err := s.appFs.MkdirAll(filepath.Join(path, ChartsPath), DefaultConfigDirPerm); err != nil {
-		return err
-	}
-	if err := s.appFs.MkdirAll(filepath.Join(path, WithPath), DefaultConfigDirPerm); err != nil {
-		return err
-	}
-	if err := s.appFs.WriteFile(filepath.Join(path, GlobalConfigFile), []byte(template), DefaultConfigFsPerm); err != nil {
-		return err
-	}
-	if err := s.appFs.WriteFile(filepath.Join(path, LockFileName), []byte(""), DefaultConfigFsPerm); err != nil {
-		return err
-	}
-	return nil
+	return s.Init(template)
 }
 
 // Set adds or modifies a configuration path value.

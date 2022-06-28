@@ -19,7 +19,10 @@ func init() {
 }
 
 func InitFn(force bool, config *cfg.Svc) error {
-	return config.Init(force, configTemplate)
+	if force {
+		return config.Init(configTemplate)
+	}
+	return config.InitIfEmpty(configTemplate)
 }
 
 var configTemplate = `

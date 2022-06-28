@@ -180,14 +180,14 @@ func TestSvc_ManifestPathForDeploy(t *testing.T) {
 func TestSvc_Pull_Invalid(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	m := NewSvc(fs, "/test", logrus.New())
-	err := m.Pull("a", "b", "c", false)
+	err := m.Pull("a", "b", "c")
 	assert.ErrorContains(t, err, "could not find protocol handler for: ")
 }
 
 func TestSvc_pull(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	m := NewSvc(fs, "/test", logrus.New())
-	p, err := m.pull("b", "c")
+	p, err := m.doPull("b", "c")
 	if err != nil {
 		t.Error(err)
 	}
@@ -200,7 +200,7 @@ func TestSvc_pull(t *testing.T) {
 func TestSvc_pullAddConfig(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	m := NewSvc(fs, "/test", logrus.New())
-	if err := m.pullAddConfig(true, "a", "b"); err != nil {
+	if err := m.PullAddConfig("a", "b"); err != nil {
 		t.Error(err)
 	}
 	b, err := afero.ReadFile(fs, "/test/config/a.yml")

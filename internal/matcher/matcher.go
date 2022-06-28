@@ -3,7 +3,6 @@ package matcher
 import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
-	"log"
 	"sigs.k8s.io/kustomize/kyaml/kio"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
@@ -38,23 +37,20 @@ func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
 func (m Svc) Match(filePath string, matchers []Matcher) (Matches, error) {
 	file, err := m.appFs.Open(filePath)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	defer func() {
-		err := file.Close()
-		if err != nil {
-			log.Fatal(err)
-		}
+		_ = file.Close()
 	}()
 	reader := kio.ByteReader{Reader: file}
 	nodes, err := reader.Read()
 	if err != nil {
 		return nil, err
 	}
-	return m.match(nodes, matchers)
+	return m.matches(nodes, matchers)
 }
 
-func (m Svc) match(nodes []*yaml.RNode, matchers []Matcher) (Matches, error) {
+func (Svc) matches(nodes []*yaml.RNode, matchers []Matcher) (Matches, error) {
 	var matches Matches
 	for _, match := range matchers {
 		kind := match.kind
