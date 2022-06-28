@@ -146,10 +146,7 @@ func (s Svc) Init(force bool, template string) error {
 	if err := s.appFs.WriteFile(filepath.Join(path, GlobalConfigFile), []byte(template), DefaultConfigFsPerm); err != nil {
 		return err
 	}
-	if err := s.appFs.WriteFile(filepath.Join(path, LockFileName), []byte(""), DefaultConfigFsPerm); err != nil {
-		return err
-	}
-	return nil
+	return s.appFs.WriteFile(filepath.Join(path, LockFileName), []byte(""), DefaultConfigFsPerm)
 }
 
 // Set adds or modifies a configuration path value.
