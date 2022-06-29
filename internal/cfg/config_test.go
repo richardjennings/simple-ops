@@ -387,3 +387,38 @@ func Test_Deploy_Id(t *testing.T) {
 	d := Deploy{Environment: "a", Component: "b"}
 	assert.Equal(t, d.Id(), "a.b")
 }
+
+func Test_MergeMaps(t *testing.T) {
+	for _, tc := range []struct {
+		a map[string]interface{}
+		b map[string]interface{}
+		e map[string]interface{}
+	}{
+		{map[string]interface{}{}, map[string]interface{}{}, map[string]interface{}{}},
+		{ // lists are replaced
+			map[string]interface{}{"a": []string{"1,2,4"}},
+			map[string]interface{}{"a": []string{"1,2,3"}},
+			map[string]interface{}{"a": []string{"1,2,3"}},
+		},
+		{
+			// bool a.b can be set from true to false
+			a: map[string]interface{}{"a": map[string]interface{}{"b": true}},
+			b: map[string]interface{}{"a": map[string]interface{}{"b": false}},
+			e: map[string]interface{}{"a": map[string]interface{}{"b": false}},
+		},
+		{
+			// bool a.b can be set from false to true
+			a: map[string]interface{}{"a": map[string]interface{}{"b": false}},
+			b: map[string]interface{}{"a": map[string]interface{}{"b": true}},
+			e: map[string]interface{}{"a": map[string]interface{}{"b": true}},
+		},
+		{
+			// can add key to map value
+			a: map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"c": "test"}}},
+			b: map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"d": "test"}}},
+			e: map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"c": "test", "d": "test"}}},
+		},
+	} {
+		assert.DeepEqual(t, MergeMaps(tc.a, tc.b), tc.e)
+	}
+}
