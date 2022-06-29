@@ -305,7 +305,7 @@ func (s Svc) renderWith(n string, w cfg.With, name string) ([]byte, error) {
 	var c []byte
 	var v map[string]interface{}
 	var err error
-	path := filepath.Join(s.wd, cfg.WithPath, n) + cfg.Suffix
+	path := filepath.Join(s.wd, cfg.ResourcesPath, n) + cfg.Suffix
 	if c, err = s.appFs.ReadFile(path); err != nil {
 		return c, err
 	}

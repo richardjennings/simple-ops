@@ -18,7 +18,7 @@ const (
 	ConfPath             = "config"
 	DeployPath           = "deploy"
 	ChartsPath           = "charts"
-	WithPath             = "with"
+	ResourcesPath        = "resources"
 	DefaultConfigFsPerm  = 0655
 	DefaultConfigDirPerm = 0755
 	Suffix               = ".yml"
@@ -129,7 +129,7 @@ func (s Svc) Init(template string) error {
 	if err := s.appFs.MkdirAll(filepath.Join(s.wd, ChartsPath), DefaultConfigDirPerm); err != nil {
 		return err
 	}
-	if err := s.appFs.MkdirAll(filepath.Join(s.wd, WithPath), DefaultConfigDirPerm); err != nil {
+	if err := s.appFs.MkdirAll(filepath.Join(s.wd, ResourcesPath), DefaultConfigDirPerm); err != nil {
 		return err
 	}
 	if err := s.appFs.WriteFile(filepath.Join(s.wd, GlobalConfigFile), []byte(template), DefaultConfigFsPerm); err != nil {
