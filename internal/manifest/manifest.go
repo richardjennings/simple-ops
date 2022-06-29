@@ -15,6 +15,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/release"
+	"io"
 	"io/fs"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
@@ -199,46 +200,8 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 
 	// with
 	if deploy.With != nil {
-		// ordered with templates
-		var orderedFiles []string
-		for p := range deploy.With {
-			orderedFiles = append(orderedFiles, p)
-		}
-		sort.Strings(orderedFiles)
-		for _, p := range orderedFiles {
-			withs, ok := deploy.With[p]
-			if !ok {
-				return fmt.Errorf("could not find with %s", p)
-			}
-			var ordered []string
-			// iterate in-order such that the generated output
-			// is idempotent
-			for name := range withs {
-				ordered = append(ordered, name)
-			}
-			sort.Strings(ordered)
-			for _, name := range ordered {
-				with, ok := withs[name]
-				if !ok {
-					return fmt.Errorf("could not find with %s", name)
-				}
-				if with.Path == "" {
-					t, err = s.generateWith(p, with, name)
-					if err != nil {
-						return err
-					}
-					rendered.Write([]byte("---\n"))
-					rendered.Write([]byte(fmt.Sprintf("# Source: simple-ops with %s.yml\n", p)))
-					rendered.Write(t)
-					s.log.Debugf("generated with %s type %s for %s", name, p, deploy.Id())
-
-				} else {
-					if err := s.generateWithToPath(p, with, name); err != nil {
-						return err
-					}
-					s.log.Debugf("generated with %s type %s for %s to path %s", name, p, deploy.Id(), with.Path)
-				}
-			}
+		if err := s.with(deploy, &rendered); err != nil {
+			return err
 		}
 	}
 
@@ -262,6 +225,63 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 		return err
 	}
 	s.log.Debugf("wrote manifest to %s", path)
+	return nil
+}
+
+func (s Svc) with(deploy *cfg.Deploy, rendered io.Writer) error {
+	var t []byte
+	var err error
+
+	// ordered with templates
+	var orderedFiles []string
+	for p := range deploy.With {
+		orderedFiles = append(orderedFiles, p)
+	}
+	sort.Strings(orderedFiles)
+	for _, p := range orderedFiles {
+		withs, ok := deploy.With[p]
+		if !ok {
+			return fmt.Errorf("could not find with %s", p)
+		}
+		var ordered []string
+		// iterate in-order such that the generated output
+		// is idempotent
+		for name := range withs {
+			ordered = append(ordered, name)
+		}
+		sort.Strings(ordered)
+		for _, name := range ordered {
+			with, ok := withs[name]
+			if !ok {
+				return fmt.Errorf("could not find with %s", name)
+			}
+			if with.Path == "" {
+				t, err = s.generateWith(p, with, name)
+				if err != nil {
+					return err
+				}
+				_, err = rendered.Write([]byte("---\n"))
+				if err != nil {
+					return err
+				}
+				_, err = rendered.Write([]byte(fmt.Sprintf("# Source: simple-ops with %s.yml\n", p)))
+				if err != nil {
+					return err
+				}
+				_, err = rendered.Write(t)
+				if err != nil {
+					return err
+				}
+				s.log.Debugf("generated with %s type %s for %s", name, p, deploy.Id())
+
+			} else {
+				if err := s.generateWithToPath(p, with, name); err != nil {
+					return err
+				}
+				s.log.Debugf("generated with %s type %s for %s to path %s", name, p, deploy.Id(), with.Path)
+			}
+		}
+	}
 	return nil
 }
 
