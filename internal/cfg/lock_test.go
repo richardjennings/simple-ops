@@ -23,3 +23,28 @@ func TestLock_AddChart(t *testing.T) {
 	expected := fmt.Sprintf("charts:\n- chart: %s\n  digest: %s\n  repository: %s\n  version: %s\n", name, digest, repository, version)
 	assert.Equal(t, string(actual), expected)
 }
+
+func TestLock_AddChart_NoLockFile(t *testing.T) {
+	l := NewLock(afero.NewMemMapFs(), "/test", logrus.New())
+	err := l.AddChart("a", "b", "c", "d")
+	assert.ErrorContains(t, err, "open /test/simple-ops.lock: file does not exist")
+}
+
+func TestLock_AddChart_SkipDuplicate(t *testing.T) {
+	l := NewLock(afero.NewMemMapFs(), "/test", logrus.New())
+	err := l.appFs.WriteFile("/test/simple-ops.lock", []byte(""), 0777)
+	assert.NilError(t, err)
+	err = l.AddChart("a", "b", "c", "d")
+	assert.NilError(t, err)
+	err = l.AddChart("a", "b", "c", "d")
+	assert.NilError(t, err)
+	lf, err := l.LockFile()
+	assert.NilError(t, err)
+	assert.Equal(t, len(lf.Charts), 1)
+	assert.DeepEqual(t, lf.Charts, []*ChartSource{{
+		Name:       "a",
+		Repository: "b",
+		Version:    "c",
+		Digest:     "d",
+	}})
+}

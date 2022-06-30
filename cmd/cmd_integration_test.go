@@ -12,10 +12,6 @@ import (
 	"testing"
 )
 
-func Test_Integration_Kustomization(t *testing.T) {
-
-}
-
 // Test_Integration runs through the process of:
 // Init a new working directory
 // Add a chart
