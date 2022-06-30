@@ -33,15 +33,16 @@ type (
 		log   *logrus.Logger
 	}
 	Deploy struct {
-		Namespace   Namespace                    `json:"namespace"`
-		Labels      map[string]string            `json:"labels"`
-		Chart       string                       `json:"chart"`
-		Disabled    bool                         `json:"disabled"`
-		With        Withs                        `json:"with"`
-		Values      map[string]interface{}       `json:"values"`
-		Environment string                       `json:"-"`
-		Component   string                       `json:"-"`
-		FsSlice     map[string][]types.FieldSpec `json:"fsslice"`
+		Namespace      Namespace                       `json:"namespace"`
+		Labels         map[string]string               `json:"labels"`
+		Chart          string                          `json:"chart"`
+		Disabled       bool                            `json:"disabled"`
+		With           Withs                           `json:"with"`
+		Values         map[string]interface{}          `json:"values"`
+		Kustomizations map[string]*types.Kustomization `json:"kustomizations"`
+		Environment    string                          `json:"-"`
+		Component      string                          `json:"-"`
+		FsSlice        map[string][]types.FieldSpec    `json:"fsslice"`
 	}
 	Conf struct {
 		Deploy
@@ -87,7 +88,7 @@ func (s Svc) Deploys() (Deploys, error) {
 		// merge global config
 		m = MergeMaps(globalCfg, m)
 		component := componentName(path)
-		d, err := buildDeploys(m, component)
+		d, err := s.buildDeploys(m, component)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +112,7 @@ func (s Svc) GetDeploy(component string, environment string) (*Deploy, error) {
 	return nil, fmt.Errorf("deploy %s.%s not found", environment, component)
 }
 
-func (s Svc) ManifestPath(d Deploy) (string, error) {
+func (s Svc) ManifestPath(d *Deploy) (string, error) {
 	return filepath.Abs(filepath.Join(s.wd, DeployPath, d.Environment, d.Component, "manifest.yaml"))
 }
 
@@ -272,7 +273,7 @@ func MergeMaps(a, b map[string]interface{}) map[string]interface{} {
 }
 
 // buildDeploys merges parent config into Deploy config.
-func buildDeploys(m map[string]interface{}, component string) (Deploys, error) {
+func (s Svc) buildDeploys(m map[string]interface{}, component string) (Deploys, error) {
 	ds := make(map[string]map[string]interface{})
 
 	// parent deploy config
@@ -317,6 +318,18 @@ func buildDeploys(m map[string]interface{}, component string) (Deploys, error) {
 		deploy.Environment = env
 		deploy.Component = component
 		deploys = append(deploys, deploy)
+	}
+
+	// update Kustomizations
+	// resources configured to point at generated deploy file
+	for i, d := range deploys {
+		path, err := s.ManifestPath(d)
+		if err != nil {
+			return nil, err
+		}
+		for j := range d.Kustomizations {
+			deploys[i].Kustomizations[j].Resources = []string{path}
+		}
 	}
 
 	return deploys, nil

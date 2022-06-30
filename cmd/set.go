@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"github.com/ghodss/yaml"
 	"github.com/richardjennings/simple-ops/internal/cfg"
 	"github.com/spf13/cobra"
 	"io/ioutil"
@@ -46,6 +47,11 @@ func SetFn(path string, value string, setType string, config *cfg.Svc) error {
 	case "int":
 		v, err = strconv.Atoi(value)
 		cobra.CheckErr(err)
+	case "yaml":
+		v = make(map[string]interface{})
+		if err := yaml.Unmarshal([]byte(value), &v); err != nil {
+			return err
+		}
 	default:
 		v = value
 	}

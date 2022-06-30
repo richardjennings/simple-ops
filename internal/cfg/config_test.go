@@ -173,6 +173,8 @@ func TestSvc_parseConfig(t *testing.T) {
 }
 
 func TestSvc_buildDeploys(t *testing.T) {
+	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
+
 	// a. test to check boolean false can override boolean true
 	// this does not work with mergo library or helm 2
 	m := map[string]interface{}{
@@ -188,7 +190,7 @@ func TestSvc_buildDeploys(t *testing.T) {
 		},
 	}
 	component := "test"
-	actual, err := buildDeploys(m, component)
+	actual, err := c.buildDeploys(m, component)
 	if err != nil {
 		t.Error(err)
 	}
@@ -197,6 +199,8 @@ func TestSvc_buildDeploys(t *testing.T) {
 }
 
 func TestSvc_buildDeploys_without_values(t *testing.T) {
+	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
+
 	// a. test to check boolean false can override boolean true
 	// this does not work with mergo library or helm 2
 	m := map[string]interface{}{
@@ -205,7 +209,7 @@ func TestSvc_buildDeploys_without_values(t *testing.T) {
 		},
 	}
 	component := "test"
-	actual, err := buildDeploys(m, component)
+	actual, err := c.buildDeploys(m, component)
 	if err != nil {
 		t.Error(err)
 	}
@@ -312,10 +316,49 @@ func TestSvc_GetDeploy_Exists(t *testing.T) {
 	assert.Equal(t, d.Component, "a")
 }
 
+func TestSvc_GetDeploy_Kustomization(t *testing.T) {
+	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
+	if err := c.appFs.Mkdir("/test/config", DefaultConfigFsPerm); err != nil {
+		t.Error(err)
+	}
+	if err := afero.WriteFile(c.appFs, "/test/simple-ops.yml", []byte(""), DefaultConfigFsPerm); err != nil {
+		t.Fatal(err)
+	}
+	depConf := `
+deploy:
+  b:
+    values:
+kustomizations:
+  deployment_resources:
+    namespace: metrics-server
+    patchesJson6902:
+    - patch: |-
+        - op: replace
+          path: /spec/template/spec/containers/0/resources
+          value:
+            limits:
+              cpu: 50
+              mem: 50Mi
+            requests:
+              cpu: 50
+              mem: 50Mi
+    target:
+      kind: Deployment
+      name: metrics-server
+`
+	if err := afero.WriteFile(c.appFs, "/test/config/a.yml", []byte(depConf), DefaultConfigFsPerm); err != nil {
+		t.Fatal(err)
+	}
+	d, err := c.GetDeploy("a", "b")
+	assert.Check(t, d != nil)
+	assert.DeepEqual(t, d.Kustomizations["deployment_resources"].Resources, []string{"/test/deploy/b/a/manifest.yaml"})
+	assert.NilError(t, err)
+}
+
 func TestSvc_ManifestPath(t *testing.T) {
 	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
 	d := Deploy{Environment: "a", Component: "b"}
-	s, err := c.ManifestPath(d)
+	s, err := c.ManifestPath(&d)
 	assert.NilError(t, err)
 	assert.Equal(t, s, "/test/deploy/a/b/manifest.yaml")
 }

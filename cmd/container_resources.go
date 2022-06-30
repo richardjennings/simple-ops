@@ -32,7 +32,7 @@ func ContainerResourcesForDeploy(compName string, envName string, w io.Writer, c
 	if err != nil {
 		return err
 	}
-	manifestPath, err := config.ManifestPath(*deploy)
+	manifestPath, err := config.ManifestPath(deploy)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func ContainerResourcesForDeploys(w io.Writer, config *cfg.Svc, match *matcher.S
 		return err
 	}
 	for _, d := range deploys {
-		manifestPath, err := config.ManifestPath(*d)
+		manifestPath, err := config.ManifestPath(d)
 		if err != nil {
 			return err
 		}
