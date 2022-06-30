@@ -22,7 +22,9 @@ import (
 	"path/filepath"
 	"sigs.k8s.io/kustomize/api/filters/labels"
 	"sigs.k8s.io/kustomize/api/filters/namespace"
+	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/types"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 	"sigs.k8s.io/kustomize/kyaml/kio"
 	"sort"
 	"strings"
@@ -224,6 +226,12 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 	if err := s.appFs.WriteFile(path, t, defaultFilePerm); err != nil {
 		return err
 	}
+
+	// run kustomizations if any
+	if err := s.kustomizeDeploy(deploy); err != nil {
+		return err
+	}
+
 	s.log.Debugf("wrote manifest to %s", path)
 	return nil
 }
@@ -446,6 +454,43 @@ func (Svc) kustomizeLabels(lbls map[string]string, manifest []byte) ([]byte, err
 	return buf.Bytes(), err
 }
 
+func (s Svc) kustomizeDeploy(d *cfg.Deploy) error {
+	fs := filesys.MakeFsOnDisk()
+	krust := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
+	p := s.pathForTmpComponent(d)
+	file := filepath.Join(p, "kustomization.yaml")
+	manifest := filepath.Join(p, "manifest.yaml")
+	for _, k := range d.Kustomizations {
+		k.Resources = []string{
+			manifest,
+		}
+		// write kustomization
+		b, err := yaml.Marshal(k)
+		if err != nil {
+			return err
+		}
+		if err := s.appFs.WriteFile(file, b, defaultFilePerm); err != nil {
+			return err
+		}
+		res, err := krust.Run(fs, p)
+		if err != nil {
+			return err
+		}
+		b, err = res.AsYaml()
+		if err != nil {
+			return err
+		}
+		if err := s.appFs.WriteFile(manifest, b, defaultFilePerm); err != nil {
+			return err
+		}
+		// delete kustomization file
+		if err := s.appFs.Remove(file); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s Svc) PathForChart(p string) string {
 	return s.wd + string(os.PathSeparator) + cfg.ChartsPath + string(os.PathSeparator) + p
 }
@@ -493,10 +538,12 @@ func (s Svc) ManifestPathForDeploy(d *cfg.Deploy) string {
 	return filepath.Join(s.wd, cfg.DeployPath, d.Environment, d.Component, "manifest.yaml")
 }
 
+// returns tmp path tmp/deploy/environment/component
 func (s Svc) pathForTmpComponent(d *cfg.Deploy) string {
 	return pathForTmpDeploy(d, s.tmp) + string(os.PathSeparator) + d.Component
 }
 
+// returns tmp path tmp/deploy/environment/
 func pathForTmpDeploy(d *cfg.Deploy, tmpDir string) string {
 	return tmpDir + string(os.PathSeparator) + cfg.DeployPath + string(os.PathSeparator) + d.Environment
 }
