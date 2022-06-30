@@ -128,6 +128,16 @@ patchesJson6902:
 	o, e = i.Set(key, kustomization, "yaml", false)
 	assert.Equal(t, o, "")
 	assert.Equal(t, e, "")
+
+	// generate again to apply kustomization
+	o, e = i.Generate()
+	assert.Assert(t, o == "" && e == "")
+
+	// container resources yaml should now output the new config values
+	o, e = i.ContainerResources("test.metrics-server", "yaml")
+	expected = "- name: metrics-server\n  parentName: metrics-server\n  parentType: Deployment\n  resources:\n    limits: {cpu: 50m, mem: 50Mi}\n    requests: {cpu: 50m, mem: 50Mi}\n"
+	assert.Equal(t, o, expected)
+	assert.Equal(t, e, "")
 }
 
 type integration struct {
