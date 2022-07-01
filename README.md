@@ -134,7 +134,7 @@ labels: <map>
    key: value # label name to label value map
 disabled: <bool> # disable the configuration
 with: <map> # ad-hoc templates
-   template: <map> # the name sans .yml in /with/
+   template: <map> # the name sans .yml in /resources/
       path: <string> # optionally render manifest to file relative to project e.g. ./apps/myapp.yaml
       values: <map> # values merged into with template yaml configuration
          example: value
@@ -142,6 +142,8 @@ values: <map> values to pass to Helm templating
 fsslice: <map> configuration of kustomize filterspec's
 deploy: <map> # deploy specifies the per environment configuration for a component
    environment-name: <config> # the configuration is identical to the parent sans deploy
+kustomizations: #<map> of name to Kustomization yaml
+kustomizationPaths: #<list> string any relative directory paths required by kustomize build (copied to tmp build context)
 ```
 
 The global config ```simple-ops.yml``` is merged with the component config. Any defaults specified globally can
@@ -195,7 +197,7 @@ If path is not specified the generated With manifest is bundled with any helm ge
 ```deploy/environment/component/manifest.yaml```. For example:
 
 ```yaml
-# with/sealed-secret.yml
+# resources/sealed-secret.yml
 apiVersion: bitnami.com/v1alpha1
 kind: SealedSecret
 metadata:
