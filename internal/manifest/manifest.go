@@ -15,13 +15,16 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/release"
+	"io"
 	"io/fs"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"path/filepath"
 	"sigs.k8s.io/kustomize/api/filters/labels"
 	"sigs.k8s.io/kustomize/api/filters/namespace"
+	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/types"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 	"sigs.k8s.io/kustomize/kyaml/kio"
 	"sort"
 	"strings"
@@ -199,46 +202,8 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 
 	// with
 	if deploy.With != nil {
-		// ordered with templates
-		var orderedFiles []string
-		for p := range deploy.With {
-			orderedFiles = append(orderedFiles, p)
-		}
-		sort.Strings(orderedFiles)
-		for _, p := range orderedFiles {
-			withs, ok := deploy.With[p]
-			if !ok {
-				return fmt.Errorf("could not find with %s", p)
-			}
-			var ordered []string
-			// iterate in-order such that the generated output
-			// is idempotent
-			for name := range withs {
-				ordered = append(ordered, name)
-			}
-			sort.Strings(ordered)
-			for _, name := range ordered {
-				with, ok := withs[name]
-				if !ok {
-					return fmt.Errorf("could not find with %s", name)
-				}
-				if with.Path == "" {
-					t, err = s.generateWith(p, with, name)
-					if err != nil {
-						return err
-					}
-					rendered.Write([]byte("---\n"))
-					rendered.Write([]byte(fmt.Sprintf("# Source: simple-ops with %s.yml\n", p)))
-					rendered.Write(t)
-					s.log.Debugf("generated with %s type %s for %s", name, p, deploy.Id())
-
-				} else {
-					if err := s.generateWithToPath(p, with, name); err != nil {
-						return err
-					}
-					s.log.Debugf("generated with %s type %s for %s to path %s", name, p, deploy.Id(), with.Path)
-				}
-			}
+		if err := s.with(deploy, &rendered); err != nil {
+			return err
 		}
 	}
 
@@ -261,7 +226,70 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 	if err := s.appFs.WriteFile(path, t, defaultFilePerm); err != nil {
 		return err
 	}
+
+	// run kustomizations if any
+	if err := s.kustomizeDeploy(deploy); err != nil {
+		return err
+	}
+
 	s.log.Debugf("wrote manifest to %s", path)
+	return nil
+}
+
+func (s Svc) with(deploy *cfg.Deploy, rendered io.Writer) error {
+	var t []byte
+	var err error
+
+	// ordered with templates
+	var orderedFiles []string
+	for p := range deploy.With {
+		orderedFiles = append(orderedFiles, p)
+	}
+	sort.Strings(orderedFiles)
+	for _, p := range orderedFiles {
+		withs, ok := deploy.With[p]
+		if !ok {
+			return fmt.Errorf("could not find with %s", p)
+		}
+		var ordered []string
+		// iterate in-order such that the generated output
+		// is idempotent
+		for name := range withs {
+			ordered = append(ordered, name)
+		}
+		sort.Strings(ordered)
+		for _, name := range ordered {
+			with, ok := withs[name]
+			if !ok {
+				return fmt.Errorf("could not find with %s", name)
+			}
+			if with.Path == "" {
+				t, err = s.generateWith(p, with, name)
+				if err != nil {
+					return err
+				}
+				_, err = rendered.Write([]byte("---\n"))
+				if err != nil {
+					return err
+				}
+				_, err = rendered.Write([]byte(fmt.Sprintf("# Source: simple-ops with %s.yml\n", p)))
+				if err != nil {
+					return err
+				}
+				_, err = rendered.Write(t)
+				if err != nil {
+					return err
+				}
+				s.log.Debugf("generated with %s type %s for %s", name, p, deploy.Id())
+
+			} else {
+				if err := s.generateWithToPath(p, with, name); err != nil {
+					return err
+				}
+				s.log.Debugf("generated with %s type %s for %s to path %s", name, p, deploy.Id(), with.Path)
+			}
+		}
+	}
 	return nil
 }
 
@@ -305,7 +333,7 @@ func (s Svc) renderWith(n string, w cfg.With, name string) ([]byte, error) {
 	var c []byte
 	var v map[string]interface{}
 	var err error
-	path := filepath.Join(s.wd, cfg.WithPath, n) + cfg.Suffix
+	path := filepath.Join(s.wd, cfg.ResourcesPath, n) + cfg.Suffix
 	if c, err = s.appFs.ReadFile(path); err != nil {
 		return c, err
 	}
@@ -426,6 +454,60 @@ func (Svc) kustomizeLabels(lbls map[string]string, manifest []byte) ([]byte, err
 	return buf.Bytes(), err
 }
 
+func (s Svc) copyKustomizationPaths(d *cfg.Deploy) error {
+	for _, p := range d.KustomizationPaths {
+		dest := filepath.Join(s.tmp, p)
+		src := filepath.Join(s.wd, p)
+		if f, _ := s.appFs.Stat(dest); f != nil {
+			continue
+		}
+		if err := cp.Copy(src, dest, cp.Options{AddPermission: defaultFilePerm, PreserveOwner: true}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s Svc) kustomizeDeploy(d *cfg.Deploy) error {
+	if err := s.copyKustomizationPaths(d); err != nil {
+		return err
+	}
+	fs := filesys.MakeFsOnDisk()
+	krust := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
+	p := s.pathForTmpComponent(d)
+	file := filepath.Join(s.tmp, "kustomization.yaml")
+	manifest := filepath.Join(p, "manifest.yaml")
+	for _, k := range d.Kustomizations {
+		k.Resources = []string{
+			manifest,
+		}
+		// write kustomization
+		b, err := yaml.Marshal(k)
+		if err != nil {
+			return err
+		}
+		if err := s.appFs.WriteFile(file, b, defaultFilePerm); err != nil {
+			return err
+		}
+		res, err := krust.Run(fs, s.tmp)
+		if err != nil {
+			return err
+		}
+		b, err = res.AsYaml()
+		if err != nil {
+			return err
+		}
+		if err := s.appFs.WriteFile(manifest, b, defaultFilePerm); err != nil {
+			return err
+		}
+		// delete kustomization file
+		if err := s.appFs.Remove(file); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s Svc) PathForChart(p string) string {
 	return s.wd + string(os.PathSeparator) + cfg.ChartsPath + string(os.PathSeparator) + p
 }
@@ -473,10 +555,12 @@ func (s Svc) ManifestPathForDeploy(d *cfg.Deploy) string {
 	return filepath.Join(s.wd, cfg.DeployPath, d.Environment, d.Component, "manifest.yaml")
 }
 
+// returns tmp path tmp/deploy/environment/component
 func (s Svc) pathForTmpComponent(d *cfg.Deploy) string {
 	return pathForTmpDeploy(d, s.tmp) + string(os.PathSeparator) + d.Component
 }
 
+// returns tmp path tmp/deploy/environment/
 func pathForTmpDeploy(d *cfg.Deploy, tmpDir string) string {
 	return tmpDir + string(os.PathSeparator) + cfg.DeployPath + string(os.PathSeparator) + d.Environment
 }

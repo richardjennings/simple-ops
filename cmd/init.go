@@ -38,4 +38,10 @@ fsslice:
 # apply this label to all resources matched by fsslice.labels
 labels:
   "app.kubernetes.io/managed-by": "simple-ops"
+
+# Relative directories to be copied into the temporary build context where
+# kustimze build is run by simple-ops such that any relative paths
+# defined in kustomizations are made to exist by copying from the
+# working directory to the temporary build context
+kustomizationPaths:
 `

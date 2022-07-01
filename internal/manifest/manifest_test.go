@@ -24,7 +24,7 @@ func setupWithTestChart(t *testing.T, fs afero.Fs) {
 	if err := fs.MkdirAll("/test/charts", cfg.DefaultConfigDirPerm); err != nil {
 		t.Fatal(err)
 	}
-	if err := fs.MkdirAll("/test/with", cfg.DefaultConfigDirPerm); err != nil {
+	if err := fs.MkdirAll("/test/resources", cfg.DefaultConfigDirPerm); err != nil {
 		t.Fatal(err)
 	}
 	// use tesdata chart
@@ -44,10 +44,10 @@ func TestSvc_GenerateVerify(t *testing.T) {
 	setupWithTestChart(t, fs)
 
 	withData := "metadata:\n"
-	if err := afero.WriteFile(fs, "/test/with/file.yml", []byte(withData), 0755); err != nil {
+	if err := afero.WriteFile(fs, "/test/resources/file.yml", []byte(withData), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := afero.WriteFile(fs, "/test/with/thing.yml", []byte(withData), 0755); err != nil {
+	if err := afero.WriteFile(fs, "/test/resources/thing.yml", []byte(withData), 0755); err != nil {
 		t.Fatal(err)
 	}
 	deploys := cfg.Deploys{

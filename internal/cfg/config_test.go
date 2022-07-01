@@ -173,6 +173,8 @@ func TestSvc_parseConfig(t *testing.T) {
 }
 
 func TestSvc_buildDeploys(t *testing.T) {
+	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
+
 	// a. test to check boolean false can override boolean true
 	// this does not work with mergo library or helm 2
 	m := map[string]interface{}{
@@ -188,7 +190,7 @@ func TestSvc_buildDeploys(t *testing.T) {
 		},
 	}
 	component := "test"
-	actual, err := buildDeploys(m, component)
+	actual, err := c.buildDeploys(m, component)
 	if err != nil {
 		t.Error(err)
 	}
@@ -197,6 +199,8 @@ func TestSvc_buildDeploys(t *testing.T) {
 }
 
 func TestSvc_buildDeploys_without_values(t *testing.T) {
+	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
+
 	// a. test to check boolean false can override boolean true
 	// this does not work with mergo library or helm 2
 	m := map[string]interface{}{
@@ -205,7 +209,7 @@ func TestSvc_buildDeploys_without_values(t *testing.T) {
 		},
 	}
 	component := "test"
-	actual, err := buildDeploys(m, component)
+	actual, err := c.buildDeploys(m, component)
 	if err != nil {
 		t.Error(err)
 	}
@@ -312,10 +316,49 @@ func TestSvc_GetDeploy_Exists(t *testing.T) {
 	assert.Equal(t, d.Component, "a")
 }
 
+func TestSvc_GetDeploy_Kustomization(t *testing.T) {
+	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
+	if err := c.appFs.Mkdir("/test/config", DefaultConfigFsPerm); err != nil {
+		t.Error(err)
+	}
+	if err := afero.WriteFile(c.appFs, "/test/simple-ops.yml", []byte(""), DefaultConfigFsPerm); err != nil {
+		t.Fatal(err)
+	}
+	depConf := `
+deploy:
+  b:
+    values:
+kustomizations:
+  deployment_resources:
+    namespace: metrics-server
+    patchesJson6902:
+    - patch: |-
+        - op: replace
+          path: /spec/template/spec/containers/0/resources
+          value:
+            limits:
+              cpu: 50
+              mem: 50Mi
+            requests:
+              cpu: 50
+              mem: 50Mi
+    target:
+      kind: Deployment
+      name: metrics-server
+`
+	if err := afero.WriteFile(c.appFs, "/test/config/a.yml", []byte(depConf), DefaultConfigFsPerm); err != nil {
+		t.Fatal(err)
+	}
+	d, err := c.GetDeploy("a", "b")
+	assert.Check(t, d != nil)
+	assert.DeepEqual(t, d.Kustomizations["deployment_resources"].Resources, []string{"/test/deploy/b/a/manifest.yaml"})
+	assert.NilError(t, err)
+}
+
 func TestSvc_ManifestPath(t *testing.T) {
 	c := NewSvc(afero.NewMemMapFs(), "/test", logrus.New())
 	d := Deploy{Environment: "a", Component: "b"}
-	s, err := c.ManifestPath(d)
+	s, err := c.ManifestPath(&d)
 	assert.NilError(t, err)
 	assert.Equal(t, s, "/test/deploy/a/b/manifest.yaml")
 }
@@ -386,4 +429,39 @@ func Test_DeployIdParts_Invalid(t *testing.T) {
 func Test_Deploy_Id(t *testing.T) {
 	d := Deploy{Environment: "a", Component: "b"}
 	assert.Equal(t, d.Id(), "a.b")
+}
+
+func Test_MergeMaps(t *testing.T) {
+	for _, tc := range []struct {
+		a map[string]interface{}
+		b map[string]interface{}
+		e map[string]interface{}
+	}{
+		{map[string]interface{}{}, map[string]interface{}{}, map[string]interface{}{}},
+		{ // lists are replaced
+			map[string]interface{}{"a": []string{"1,2,4"}},
+			map[string]interface{}{"a": []string{"1,2,3"}},
+			map[string]interface{}{"a": []string{"1,2,3"}},
+		},
+		{
+			// bool a.b can be set from true to false
+			a: map[string]interface{}{"a": map[string]interface{}{"b": true}},
+			b: map[string]interface{}{"a": map[string]interface{}{"b": false}},
+			e: map[string]interface{}{"a": map[string]interface{}{"b": false}},
+		},
+		{
+			// bool a.b can be set from false to true
+			a: map[string]interface{}{"a": map[string]interface{}{"b": false}},
+			b: map[string]interface{}{"a": map[string]interface{}{"b": true}},
+			e: map[string]interface{}{"a": map[string]interface{}{"b": true}},
+		},
+		{
+			// can add key to map value
+			a: map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"c": "test"}}},
+			b: map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"d": "test"}}},
+			e: map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"c": "test", "d": "test"}}},
+		},
+	} {
+		assert.DeepEqual(t, MergeMaps(tc.a, tc.b), tc.e)
+	}
 }

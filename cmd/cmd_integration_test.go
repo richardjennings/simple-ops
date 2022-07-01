@@ -12,6 +12,19 @@ import (
 	"testing"
 )
 
+// Test_Integration runs through the process of:
+// Init a new working directory
+// Add a chart
+// Set configuration values
+// Generate deployment manifests
+// Inspect container resources configuration
+// Inspect images
+// Show chart values
+// Verify manifests are correct
+// Print out version
+// Add a Kustomization config
+// Generate
+// Check Kustomization has been applied
 func Test_Integration(t *testing.T) {
 	var o, e, expected string
 	i := newIntegration(t)
@@ -40,7 +53,6 @@ func Test_Integration(t *testing.T) {
 	assert.Assert(t, o == "" && e == "")
 
 	// set enable namespace inject bool
-	//stdin = false // the init fn is not called to set the value of stdin back to false ...
 	o, e = i.Set("metrics-server.deploy.test.namespace.inject", "true", "bool", false)
 	assert.Assert(t, o == "" && e == "")
 
@@ -89,6 +101,43 @@ func Test_Integration(t *testing.T) {
 	assert.Equal(t, o, expected)
 	assert.Equal(t, e, "")
 
+	// additionally, update the metrics-server deployment resource config to specify requests and limits using Kustomize
+	kustomization := `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: metrics-server
+resources:
+- manifest.yaml
+patchesJson6902:
+- patch: |-
+    - op: replace
+      path: /spec/template/spec/containers/0/resources
+      value:
+        limits:
+          cpu: 50m
+          memory: 50Mi
+        requests:
+          cpu: 50m
+          memory: 50Mi
+  target:
+    kind: Deployment
+    name: metrics-server
+`
+	key := "metrics-server.deploy.test.kustomizations.deployment_resources"
+	o, e = i.Set(key, kustomization, "yaml", false)
+	assert.Equal(t, o, "")
+	assert.Equal(t, e, "")
+
+	// generate again to apply the Kustomization
+	o, e = i.Generate()
+	assert.Equal(t, o, "")
+	assert.Equal(t, e, "")
+
+	// container resources yaml should now output the new config values
+	o, e = i.ContainerResources("test.metrics-server", "yaml")
+	expected = "- name: metrics-server\n  parentName: metrics-server\n  parentType: Deployment\n  resources:\n    limits:\n      cpu: 50m\n      memory: 50Mi\n    requests:\n      cpu: 50m\n      memory: 50Mi\n"
+	assert.Equal(t, o, expected)
+	assert.Equal(t, e, "")
 }
 
 type integration struct {
@@ -126,7 +175,6 @@ func (i *integration) testSetup() {
 	i.t.Logf("using tmp dir %s", path)
 	// global used by newSvc functions ...
 	i.workDir = path
-	//flags.workdir = path // or should it be set via -w t.workdir flag ?
 	rootCmd.SetOut(i.out)
 	rootCmd.SetIn(i.in)
 	rootCmd.SetErr(i.err)
