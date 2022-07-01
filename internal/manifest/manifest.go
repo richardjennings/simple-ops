@@ -454,11 +454,28 @@ func (Svc) kustomizeLabels(lbls map[string]string, manifest []byte) ([]byte, err
 	return buf.Bytes(), err
 }
 
+func (s Svc) copyKustomizationPaths(d *cfg.Deploy) error {
+	for _, p := range d.KustomizationPaths {
+		dest := filepath.Join(s.tmp, p)
+		src := filepath.Join(s.wd, p)
+		if f, _ := s.appFs.Stat(dest); f != nil {
+			continue
+		}
+		if err := cp.Copy(src, dest, cp.Options{AddPermission: defaultFilePerm, PreserveOwner: true}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s Svc) kustomizeDeploy(d *cfg.Deploy) error {
+	if err := s.copyKustomizationPaths(d); err != nil {
+		return err
+	}
 	fs := filesys.MakeFsOnDisk()
 	krust := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	p := s.pathForTmpComponent(d)
-	file := filepath.Join(p, "kustomization.yaml")
+	file := filepath.Join(s.tmp, "kustomization.yaml")
 	manifest := filepath.Join(p, "manifest.yaml")
 	for _, k := range d.Kustomizations {
 		k.Resources = []string{
@@ -472,7 +489,7 @@ func (s Svc) kustomizeDeploy(d *cfg.Deploy) error {
 		if err := s.appFs.WriteFile(file, b, defaultFilePerm); err != nil {
 			return err
 		}
-		res, err := krust.Run(fs, p)
+		res, err := krust.Run(fs, s.tmp)
 		if err != nil {
 			return err
 		}
