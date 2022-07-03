@@ -1,7 +1,12 @@
 package main
 
-import "github.com/richardjennings/simple-ops/cmd"
+import (
+	"github.com/richardjennings/simple-ops/cmd"
+	"os"
+)
 
 func main() {
-	_ = cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }
