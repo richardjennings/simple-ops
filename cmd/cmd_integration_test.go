@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"gotest.tools/assert"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -128,10 +129,45 @@ patchesJson6902:
 	assert.Equal(t, o, "")
 	assert.Equal(t, e, "")
 
+	// add a jsonnet config
+	key = "jsonnet.deploy.test.jsonnet.test.inline"
+	jsonnetInline := `{
+	  Martini: {
+	    local drink = self,
+	    ingredients: [
+	      { kind: "Farmer's Gin", qty: 1 },
+	      {
+	        kind: 'Dry White Vermouth',
+	        qty: drink.ingredients[0].qty,
+	      },
+	    ],
+	    garnish: 'Olive',
+	    served: 'Straight Up',
+	  },
+	}
+	`
+	o, e = i.Set(key, jsonnetInline, "string", false)
+	assert.Equal(t, o, "")
+	assert.Equal(t, e, "")
+
 	// generate again to apply the Kustomization
 	o, e = i.Generate()
 	assert.Equal(t, o, "")
 	assert.Equal(t, e, "")
+
+	// check jsonnet content
+	actual := i.readFile("deploy/test/jsonnet/manifest.yaml")
+	expected = `# Source: simple-ops jsonnet test
+Martini:
+  garnish: Olive
+  ingredients:
+  - kind: Farmer's Gin
+    qty: 1
+  - kind: Dry White Vermouth
+    qty: 1
+  served: Straight Up
+`
+	assert.Equal(t, string(actual), expected)
 
 	// container resources yaml should now output the new config values
 	o, e = i.ContainerResources("test.metrics-server", "yaml")
@@ -156,6 +192,14 @@ func newIntegration(t *testing.T) integration {
 		t,
 		"",
 	}
+}
+
+func (i integration) readFile(path string) []byte {
+	b, err := os.ReadFile(filepath.Join(i.workDir, path))
+	if err != nil {
+		i.t.Error(err)
+	}
+	return b
 }
 
 func (i integration) resetBuffers() {

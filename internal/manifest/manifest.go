@@ -2,9 +2,11 @@ package manifest
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/ghodss/yaml"
+	"github.com/google/go-jsonnet"
 	cp "github.com/otiai10/copy"
 	"github.com/richardjennings/simple-ops/internal/cfg"
 	"github.com/richardjennings/simple-ops/internal/hash"
@@ -172,8 +174,11 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 	var rendered bytes.Buffer
 
 	s.log.Debugf("generating deploy %s:%s", deploy.Component, deploy.Environment)
-	if chrt, err = s.loadChart(deploy); err != nil {
-		return err
+
+	if deploy.Chart != "" {
+		if chrt, err = s.loadChart(deploy); err != nil {
+			return err
+		}
 	}
 
 	if err := s.appFs.MkdirAll(s.pathForTmpComponent(deploy), defaultDirPerm); err != nil {
@@ -188,17 +193,20 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 		rendered.Write(t)
 		s.log.Debugf("created namespace manifest for %s", deploy.Id())
 	}
-	s.client.ReleaseName = chrt.Name()
-	s.client.Namespace = deploy.Namespace.Name
-	s.client.CreateNamespace = false
 
-	// render the helm chart
-	rel, err = s.client.Run(chrt, deploy.Values)
-	if err != nil {
-		return err
+	if deploy.Chart != "" {
+		s.client.ReleaseName = chrt.Name()
+		s.client.Namespace = deploy.Namespace.Name
+		s.client.CreateNamespace = false
+
+		// render the helm chart
+		rel, err = s.client.Run(chrt, deploy.Values)
+		if err != nil {
+			return err
+		}
+		rendered.Write([]byte(rel.Manifest))
+		s.log.Debugf("rendered chart %s.%s for %s", chrt.Name(), chrt.Metadata.Version, deploy.Id())
 	}
-	rendered.Write([]byte(rel.Manifest))
-	s.log.Debugf("rendered chart %s.%s for %s", chrt.Name(), chrt.Metadata.Version, deploy.Id())
 
 	// with
 	if deploy.With != nil {
@@ -231,9 +239,36 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 	if err := s.kustomizeDeploy(deploy); err != nil {
 		return err
 	}
-
 	s.log.Debugf("wrote manifest to %s", path)
-	return nil
+
+	// run jsonnet
+	b, err := s.Jsonnets(deploy)
+	if err != nil {
+		return err
+	}
+	if len(b) > 0 {
+
+		// write jsonnet
+		fh, err := s.appFs.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, defaultFilePerm)
+		if err != nil {
+			return err
+		}
+		finfo, err := fh.Stat()
+		if err != nil {
+			return err
+		}
+		if finfo.Size() > 0 {
+			_, err = fh.Write([]byte("---\n"))
+			if err != nil {
+				return err
+			}
+		}
+		_, err = fh.Write(b)
+		if err != nil {
+			return err
+		}
+	}
+	return err
 }
 
 func (s Svc) with(deploy *cfg.Deploy, rendered io.Writer) error {
@@ -454,8 +489,8 @@ func (Svc) kustomizeLabels(lbls map[string]string, manifest []byte) ([]byte, err
 	return buf.Bytes(), err
 }
 
-func (s Svc) copyKustomizationPaths(d *cfg.Deploy) error {
-	for _, p := range d.KustomizationPaths {
+func (s Svc) copyPreservePaths(d *cfg.Deploy) error {
+	for _, p := range d.PreservePaths {
 		dest := filepath.Join(s.tmp, p)
 		src := filepath.Join(s.wd, p)
 		if f, _ := s.appFs.Stat(dest); f != nil {
@@ -469,7 +504,7 @@ func (s Svc) copyKustomizationPaths(d *cfg.Deploy) error {
 }
 
 func (s Svc) kustomizeDeploy(d *cfg.Deploy) error {
-	if err := s.copyKustomizationPaths(d); err != nil {
+	if err := s.copyPreservePaths(d); err != nil {
 		return err
 	}
 	fs := filesys.MakeFsOnDisk()
@@ -565,7 +600,82 @@ func pathForTmpDeploy(d *cfg.Deploy, tmpDir string) string {
 	return tmpDir + string(os.PathSeparator) + cfg.DeployPath + string(os.PathSeparator) + d.Environment
 }
 
-// /tmp/dir/deploy/prod/component/manifest.yml
+// /tmp/dir/deploy/prod/component/manifest.yaml
 func (s Svc) pathForTmpManifest(d *cfg.Deploy) string {
 	return s.pathForTmpComponent(d) + string(os.PathSeparator) + "manifest.yaml"
+}
+
+func (s Svc) Jsonnets(d *cfg.Deploy) ([]byte, error) {
+	var res []byte
+	var prefix string
+	for n, j := range d.Jsonnet {
+		r, err := s.Jsonnet(n, j)
+		if err != nil {
+			return nil, err
+		}
+		if len(res) > 0 {
+			prefix = "---\n"
+		} else {
+			prefix = ""
+		}
+		res = append(res, []byte(fmt.Sprintf("%s# Source: simple-ops jsonnet %s\n", prefix, n))...)
+		res = append(res, r...)
+	}
+	return res, nil
+}
+
+func (s Svc) Jsonnet(n string, j *cfg.Jsonnet) ([]byte, error) {
+	var b []byte
+	var err error
+
+	vm := jsonnet.MakeVM()
+	vm.Importer(&jsonnet.FileImporter{JPaths: []string{s.tmp}})
+	for k, v := range j.Values {
+		vm.ExtVar(k, v)
+	}
+
+	if j.Path != "" {
+		b, err = s.JsonnetPath(j, vm)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if j.Inline != "" {
+		e, err := s.JsonnetInline(j, vm, n)
+		if err != nil {
+			return nil, err
+		}
+		return append(b, e...), nil
+	}
+
+	return b, nil
+}
+
+func (Svc) JsonToYaml(b []byte) ([]byte, error) {
+	m := make(map[string]interface{})
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	return yaml.Marshal(&m)
+}
+func (s Svc) JsonnetInline(j *cfg.Jsonnet, vm *jsonnet.VM, n string) ([]byte, error) {
+	var ss string
+	var err error
+
+	ss, err = vm.EvaluateAnonymousSnippet(n, j.Inline)
+	if err != nil {
+		return nil, err
+	}
+	return s.JsonToYaml([]byte(ss))
+}
+func (s Svc) JsonnetPath(j *cfg.Jsonnet, vm *jsonnet.VM) ([]byte, error) {
+	var ss string
+	var err error
+
+	ss, err = vm.EvaluateFile(j.Path)
+	if err != nil {
+		return nil, err
+	}
+	return s.JsonToYaml([]byte(ss))
 }

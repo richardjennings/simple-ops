@@ -33,17 +33,18 @@ type (
 		log   *logrus.Logger
 	}
 	Deploy struct {
-		Namespace          Namespace                       `json:"namespace"`
-		Labels             map[string]string               `json:"labels"`
-		Chart              string                          `json:"chart"`
-		Disabled           bool                            `json:"disabled"`
-		With               Withs                           `json:"with"`
-		Values             map[string]interface{}          `json:"values"`
-		Kustomizations     map[string]*types.Kustomization `json:"kustomizations"`
-		KustomizationPaths []string                        `json:"kustomizationPaths"`
-		Environment        string                          `json:"-"`
-		Component          string                          `json:"-"`
-		FsSlice            map[string][]types.FieldSpec    `json:"fsslice"`
+		Namespace      Namespace                       `json:"namespace"`
+		Labels         map[string]string               `json:"labels"`
+		Chart          string                          `json:"chart"`
+		Disabled       bool                            `json:"disabled"`
+		With           Withs                           `json:"with"`
+		Values         map[string]interface{}          `json:"values"`
+		Kustomizations map[string]*types.Kustomization `json:"kustomizations"`
+		PreservePaths  []string                        `json:"preservePaths"`
+		Jsonnet        map[string]*Jsonnet             `json:"jsonnet"`
+		Environment    string                          `json:"-"`
+		Component      string                          `json:"-"`
+		FsSlice        map[string][]types.FieldSpec    `json:"fsslice"`
 	}
 	Conf struct {
 		Deploy
@@ -60,7 +61,12 @@ type (
 		Name   string `json:"name"`
 		Create bool   `json:"create"`
 		Inject bool   `json:"inject"`
-		Labels Labels `json:"Labels"`
+		Labels Labels `json:"labels"`
+	}
+	Jsonnet struct {
+		Path   string            `json:"path"`
+		Values map[string]string `json:"values"`
+		Inline string            `json:"inline"`
 	}
 	Labels         map[string]string
 	wrappedDeploys map[string]*Deploy
@@ -168,7 +174,18 @@ func (s Svc) Set(path string, value interface{}) error {
 
 	b, err = s.appFs.ReadFile(configFile)
 	if err != nil {
-		return err
+		if os.IsNotExist(err) {
+			f, err := s.appFs.Create(configFile)
+			if err != nil {
+				return err
+			}
+			if err := f.Close(); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+
 	}
 	if err = yaml.Unmarshal(b, &conf); err != nil {
 		return err

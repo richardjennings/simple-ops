@@ -233,9 +233,11 @@ creates a sealed secrets manifest called argocd-repo-github appended to ```./dep
 ### Helmfile
 ### Helmwave
 ### Jsonnet
+### Kaptain
 ### Kustomize
 ### Pulumi
-
+### Tanka
+### Kubecfg
 
 ## Key tenants
 * Repeatability for verification and consistency.
