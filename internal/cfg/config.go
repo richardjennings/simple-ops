@@ -33,18 +33,18 @@ type (
 		log   *logrus.Logger
 	}
 	Deploy struct {
-		Namespace      Namespace                       `json:"namespace"`
-		Labels         map[string]string               `json:"labels"`
-		Chart          string                          `json:"chart"`
-		Disabled       bool                            `json:"disabled"`
-		With           Withs                           `json:"with"`
-		Values         map[string]interface{}          `json:"values"`
-		Kustomizations map[string]*types.Kustomization `json:"kustomizations"`
-		PreservePaths  []string                        `json:"preservePaths"`
-		Jsonnet        map[string]*Jsonnet             `json:"jsonnet"`
-		Environment    string                          `json:"-"`
-		Component      string                          `json:"-"`
-		FsSlice        map[string][]types.FieldSpec    `json:"fsslice"`
+		Namespace          Namespace                       `json:"namespace"`
+		Labels             map[string]string               `json:"labels"`
+		Chart              string                          `json:"chart"`
+		Disabled           bool                            `json:"disabled"`
+		With               Withs                           `json:"with"`
+		Values             map[string]interface{}          `json:"values"`
+		Kustomizations     map[string]*types.Kustomization `json:"kustomizations"`
+		KustomizationPaths []string                        `json:"kustomizationPaths"`
+		Jsonnet            map[string]*Jsonnet             `json:"jsonnet"`
+		Environment        string                          `json:"-"`
+		Component          string                          `json:"-"`
+		FsSlice            map[string][]types.FieldSpec    `json:"fsslice"`
 	}
 	Conf struct {
 		Deploy

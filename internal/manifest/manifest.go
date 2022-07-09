@@ -237,7 +237,7 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 	}
 
 	// copy preserve paths
-	if err := s.copyPreservePaths(deploy); err != nil {
+	if err := s.copyKustomizationPaths(deploy); err != nil {
 		return err
 	}
 
@@ -495,8 +495,8 @@ func (Svc) kustomizeLabels(lbls map[string]string, manifest []byte) ([]byte, err
 	return buf.Bytes(), err
 }
 
-func (s Svc) copyPreservePaths(d *cfg.Deploy) error {
-	for _, p := range d.PreservePaths {
+func (s Svc) copyKustomizationPaths(d *cfg.Deploy) error {
+	for _, p := range d.KustomizationPaths {
 		dest := filepath.Join(s.tmp, p)
 		src := filepath.Join(s.wd, p)
 		if f, _ := s.appFs.Stat(dest); f != nil {
