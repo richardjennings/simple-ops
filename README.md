@@ -21,7 +21,7 @@ Simple-Ops leverages a composition pattern to make decorating charts with ancill
 SealedSecrets config driven using templating. Optionally decorating manifests can be written to a path outside ```./deploy/``` 
 for example ```./apps/``` for Argo-CD Applications.
 
-Simple-Ops wraps functionality from Helm v3 and Kustomize providing an opinionated workflow whilst remaining compatible with
+Simple-Ops wraps functionality from Helm v3, Kustomize and Jsonnet providing an opinionated workflow whilst remaining compatible with
 other tools.
 
 ## Get Started
@@ -143,7 +143,8 @@ fsslice: <map> configuration of kustomize filterspec's
 deploy: <map> # deploy specifies the per environment configuration for a component
    environment-name: <config> # the configuration is identical to the parent sans deploy
 kustomizations: #<map> of name to Kustomization yaml
-kustomizationPaths: #<list> string any relative directory paths required by kustomize build (copied to tmp build context)
+jsonnet: #<map> of name to Jsonnet configuration
+preservePaths: #<list> string any relative directory paths required by the generate stage (copied to tmp build context)
 ```
 
 The global config ```simple-ops.yml``` is merged with the component config. Any defaults specified globally can

@@ -64,8 +64,8 @@ type (
 		Labels Labels `json:"labels"`
 	}
 	Jsonnet struct {
-		Path   string            `json:"path"`
 		Values map[string]string `json:"values"`
+		Path   string            `json:"path"`
 		Inline string            `json:"inline"`
 	}
 	Labels         map[string]string
