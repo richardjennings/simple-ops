@@ -2,9 +2,11 @@ package manifest
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/ghodss/yaml"
+	"github.com/google/go-jsonnet"
 	cp "github.com/otiai10/copy"
 	"github.com/richardjennings/simple-ops/internal/cfg"
 	"github.com/richardjennings/simple-ops/internal/hash"
@@ -53,6 +55,7 @@ func NewSvc(fs afero.Fs, wd string, log *logrus.Logger) *Svc {
 	client.DryRun = true
 	client.ClientOnly = true
 	client.IncludeCRDs = true
+
 	return &Svc{appFs: afero.Afero{Fs: fs}, wd: wd, client: client, log: log}
 }
 
@@ -172,8 +175,11 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 	var rendered bytes.Buffer
 
 	s.log.Debugf("generating deploy %s:%s", deploy.Component, deploy.Environment)
-	if chrt, err = s.loadChart(deploy); err != nil {
-		return err
+
+	if deploy.Chart != "" {
+		if chrt, err = s.loadChart(deploy); err != nil {
+			return err
+		}
 	}
 
 	if err := s.appFs.MkdirAll(s.pathForTmpComponent(deploy), defaultDirPerm); err != nil {
@@ -188,17 +194,20 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 		rendered.Write(t)
 		s.log.Debugf("created namespace manifest for %s", deploy.Id())
 	}
-	s.client.ReleaseName = chrt.Name()
-	s.client.Namespace = deploy.Namespace.Name
-	s.client.CreateNamespace = false
 
-	// render the helm chart
-	rel, err = s.client.Run(chrt, deploy.Values)
-	if err != nil {
-		return err
+	if deploy.Chart != "" {
+		s.client.ReleaseName = chrt.Name()
+		s.client.Namespace = deploy.Namespace.Name
+		s.client.CreateNamespace = false
+
+		// render the helm chart
+		rel, err = s.client.Run(chrt, deploy.Values)
+		if err != nil {
+			return err
+		}
+		rendered.Write([]byte(rel.Manifest))
+		s.log.Debugf("rendered chart %s.%s for %s", chrt.Name(), chrt.Metadata.Version, deploy.Id())
 	}
-	rendered.Write([]byte(rel.Manifest))
-	s.log.Debugf("rendered chart %s.%s for %s", chrt.Name(), chrt.Metadata.Version, deploy.Id())
 
 	// with
 	if deploy.With != nil {
@@ -227,13 +236,18 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 		return err
 	}
 
+	// copy preserve paths
+	if err := s.copyKustomizationPaths(deploy); err != nil {
+		return err
+	}
+
 	// run kustomizations if any
 	if err := s.kustomizeDeploy(deploy); err != nil {
 		return err
 	}
-
 	s.log.Debugf("wrote manifest to %s", path)
-	return nil
+
+	return s.jsonnetDeploy(deploy, nil)
 }
 
 func (s Svc) with(deploy *cfg.Deploy, rendered io.Writer) error {
@@ -469,11 +483,9 @@ func (s Svc) copyKustomizationPaths(d *cfg.Deploy) error {
 }
 
 func (s Svc) kustomizeDeploy(d *cfg.Deploy) error {
-	if err := s.copyKustomizationPaths(d); err != nil {
-		return err
-	}
-	fs := filesys.MakeFsOnDisk()
-	krust := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
+	kfs := filesys.MakeFsOnDisk()
+	opts := krusty.MakeDefaultOptions()
+	krust := krusty.MakeKustomizer(opts)
 	p := s.pathForTmpComponent(d)
 	file := filepath.Join(s.tmp, "kustomization.yaml")
 	manifest := filepath.Join(p, "manifest.yaml")
@@ -489,7 +501,7 @@ func (s Svc) kustomizeDeploy(d *cfg.Deploy) error {
 		if err := s.appFs.WriteFile(file, b, defaultFilePerm); err != nil {
 			return err
 		}
-		res, err := krust.Run(fs, s.tmp)
+		res, err := krust.Run(kfs, s.tmp)
 		if err != nil {
 			return err
 		}
@@ -525,7 +537,10 @@ func (s Svc) renameDirectory(from string, to string) error {
 			return err
 		}
 		defer func() { _ = os.RemoveAll(from) }()
-		return cp.Copy(from, to, cp.Options{AddPermission: defaultFilePerm, PreserveOwner: true})
+		onSymLink := func(p string) cp.SymlinkAction {
+			return cp.Skip
+		}
+		return cp.Copy(from, to, cp.Options{AddPermission: defaultFilePerm, PreserveOwner: true, OnSymlink: onSymLink})
 	case *afero.MemMapFs:
 		// move files (not a fan of this)
 		// string prefix should be ok because we are inside path already
@@ -565,7 +580,161 @@ func pathForTmpDeploy(d *cfg.Deploy, tmpDir string) string {
 	return tmpDir + string(os.PathSeparator) + cfg.DeployPath + string(os.PathSeparator) + d.Environment
 }
 
-// /tmp/dir/deploy/prod/component/manifest.yml
+// /tmp/dir/deploy/prod/component/manifest.yaml
 func (s Svc) pathForTmpManifest(d *cfg.Deploy) string {
 	return s.pathForTmpComponent(d) + string(os.PathSeparator) + "manifest.yaml"
+}
+
+func (s Svc) jsonnetDeploy(d *cfg.Deploy, imp jsonnet.Importer) error {
+	path := s.pathForTmpManifest(d)
+
+	// run jsonnet
+	b, err := s.jsonnets(d, imp)
+	if err != nil {
+		return err
+	}
+	if len(b) > 0 {
+
+		// write jsonnet
+		fh, err := s.appFs.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, defaultFilePerm)
+		if err != nil {
+			return err
+		}
+		finfo, err := fh.Stat()
+		if err != nil {
+			return err
+		}
+		if finfo.Size() > 0 {
+			_, err = fh.Write([]byte("---\n"))
+			if err != nil {
+				return err
+			}
+		}
+		_, err = fh.Write(b)
+		if err != nil {
+			return err
+		}
+	}
+	return err
+}
+
+func (s Svc) jsonnets(d *cfg.Deploy, imp jsonnet.Importer) ([]byte, error) {
+	var res []byte
+	var prefix string
+	for n, j := range d.Jsonnet {
+		r, err := s.jsonnet(n, j, imp)
+		if err != nil {
+			return nil, err
+		}
+		if len(res) > 0 {
+			prefix = "---\n"
+		} else {
+			prefix = ""
+		}
+		res = append(res, []byte(fmt.Sprintf("%s# Source: simple-ops jsonnet %s\n", prefix, n))...)
+		res = append(res, r...)
+	}
+	return res, nil
+}
+
+func (s Svc) jsonnet(n string, j *cfg.Jsonnet, imp jsonnet.Importer) ([]byte, error) {
+	var b []byte
+	var err error
+	paths := []string{s.wd}
+	vm := jsonnet.MakeVM()
+	// allow injecting mem importer from test
+	if imp != nil {
+		vm.Importer(imp)
+	} else {
+		if j.Path != "" {
+			paths = append(paths, filepath.Join(s.wd, filepath.Dir(j.Path), "vendor"))
+		}
+		if j.PathMulti != "" {
+			paths = append(paths, filepath.Join(s.wd, filepath.Dir(j.PathMulti), "vendor"))
+		}
+		vm.Importer(&jsonnet.FileImporter{JPaths: paths})
+		for k, v := range j.Values {
+			vm.ExtVar(k, v)
+		}
+	}
+
+	if j.PathMulti != "" {
+		if b, err = s.JsonnetPathMulti(j, vm); err != nil {
+			return nil, err
+		}
+	}
+
+	if j.Path != "" {
+		e, err := s.JsonnetPath(j, vm)
+		if err != nil {
+			return nil, err
+		}
+		b = append(b, e...)
+	}
+
+	if j.Inline != "" {
+		e, err := s.JsonnetInline(j, vm, n)
+		if err != nil {
+			return nil, err
+		}
+		return append(b, e...), nil
+	}
+
+	return b, nil
+}
+
+func (Svc) JsonToYaml(b []byte) ([]byte, error) {
+	var m interface{}
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	return yaml.Marshal(&m)
+}
+func (s Svc) JsonnetInline(j *cfg.Jsonnet, vm *jsonnet.VM, n string) ([]byte, error) {
+	var ss string
+	var err error
+
+	ss, err = vm.EvaluateAnonymousSnippet(n, j.Inline)
+	if err != nil {
+		return nil, err
+	}
+	return s.JsonToYaml([]byte(ss))
+}
+
+func (s Svc) JsonnetPath(j *cfg.Jsonnet, vm *jsonnet.VM) ([]byte, error) {
+	str, err := vm.EvaluateFile(j.Path)
+	if err != nil {
+		return nil, err
+	}
+	return s.JsonToYaml([]byte(str))
+}
+
+func (s Svc) JsonnetPathMulti(j *cfg.Jsonnet, vm *jsonnet.VM) ([]byte, error) {
+
+	var docs map[string]string
+	var err error
+	r := bytes.Buffer{}
+	docs, err = vm.EvaluateFileMulti(j.PathMulti)
+	if err != nil {
+		return nil, err
+	}
+	var ordered []string
+	for d := range docs {
+		ordered = append(ordered, d)
+	}
+	sort.Strings(ordered)
+
+	for i, d := range ordered {
+		if i != 0 {
+			r.Write([]byte("---\n"))
+			r.Write([]byte(fmt.Sprintf("# Simple-Ops jsonnet %s\n", d)))
+		}
+		b, err := s.JsonToYaml([]byte(docs[d]))
+		if err != nil {
+			return nil, err
+		}
+		r.Write(b)
+	}
+
+	return r.Bytes(), nil
 }

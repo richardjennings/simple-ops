@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"github.com/google/go-jsonnet"
 	"github.com/richardjennings/simple-ops/internal/cfg"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
@@ -206,4 +207,96 @@ func TestSvc_pullAddConfig(t *testing.T) {
 	b, err := afero.ReadFile(fs, "/test/config/a.yml")
 	assert.NilError(t, err)
 	assert.Equal(t, string(b), `chart: a-b.tgz`)
+}
+
+func TestSvc_JsonnetDeploy_inline(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	m := NewSvc(fs, "/test", logrus.New())
+	deploy := cfg.Deploy{
+		Environment: "test",
+		Component:   "test",
+		Jsonnet: map[string]*cfg.Jsonnet{
+			"test": {
+				Inline: `
+local a = 1;
+[a]
+`,
+			},
+		},
+	}
+	err := m.jsonnetDeploy(&deploy, nil)
+	assert.NilError(t, err)
+	b, err := afero.ReadFile(fs, "/deploy/test/test/manifest.yaml")
+	assert.NilError(t, err)
+	expected := `# Source: simple-ops jsonnet test
+- 1
+`
+	assert.Equal(t, string(b), expected)
+}
+
+func TestSvc_JsonnetDeploy_path(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	m := NewSvc(fs, "/test", logrus.New())
+
+	testjsonnet := `
+local a = 1;
+[a]
+`
+	deploy := cfg.Deploy{
+		Environment: "test",
+		Component:   "test",
+		Jsonnet: map[string]*cfg.Jsonnet{
+			"test": {
+				Path: "jsonnet/test.jsonnet",
+			},
+		},
+	}
+	imp := jsonnet.MemoryImporter{}
+	c := jsonnet.MakeContents(testjsonnet)
+	// path is not absolute for testing
+	imp.Data = map[string]jsonnet.Contents{"jsonnet/test.jsonnet": c}
+	err := m.jsonnetDeploy(&deploy, &imp)
+	assert.NilError(t, err)
+	b, err := afero.ReadFile(fs, "/deploy/test/test/manifest.yaml")
+	assert.NilError(t, err)
+	expected := `# Source: simple-ops jsonnet test
+- 1
+`
+	assert.Equal(t, string(b), expected)
+}
+
+func TestSvc_JsonnetDeploy_pathMulti(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	m := NewSvc(fs, "/test", logrus.New())
+
+	testjsonnet := `
+local a = 1;
+local b = 2;
+{"a": [a]}
+{"b": [b]}
+`
+	deploy := cfg.Deploy{
+		Environment: "test",
+		Component:   "test",
+		Jsonnet: map[string]*cfg.Jsonnet{
+			"test": {
+				PathMulti: "jsonnet/test.jsonnet",
+			},
+		},
+	}
+	imp := jsonnet.MemoryImporter{}
+	c := jsonnet.MakeContents(testjsonnet)
+	// path is not absolute for testing
+	imp.Data = map[string]jsonnet.Contents{"jsonnet/test.jsonnet": c}
+	err := m.jsonnetDeploy(&deploy, &imp)
+	assert.NilError(t, err)
+	b, err := afero.ReadFile(fs, "/deploy/test/test/manifest.yaml")
+	assert.NilError(t, err)
+	expected := `# Source: simple-ops jsonnet test
+- 1
+---
+# Simple-Ops jsonnet b
+- 2
+`
+	assert.Equal(t, string(b), expected)
 }

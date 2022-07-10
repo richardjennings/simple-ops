@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"io"
+	"os"
+	"path/filepath"
 )
 
 type options struct {
@@ -59,6 +61,15 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&flags.verbosity, "verbosity", "v", logrus.ErrorLevel.String(), "")
 	rootCmd.PersistentFlags().StringVarP(&flags.workdir, "workdir", "w", ".", "")
 	log.SetOutput(rootCmd.OutOrStdout())
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		w := flags.workdir
+		w, err := filepath.Abs(w)
+		if err != nil {
+			return err
+		}
+		flags.workdir = w
+		return os.Chdir(w)
+	}
 }
 
 func initConfig() {

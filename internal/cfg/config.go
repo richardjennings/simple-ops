@@ -41,6 +41,7 @@ type (
 		Values             map[string]interface{}          `json:"values"`
 		Kustomizations     map[string]*types.Kustomization `json:"kustomizations"`
 		KustomizationPaths []string                        `json:"kustomizationPaths"`
+		Jsonnet            map[string]*Jsonnet             `json:"jsonnet"`
 		Environment        string                          `json:"-"`
 		Component          string                          `json:"-"`
 		FsSlice            map[string][]types.FieldSpec    `json:"fsslice"`
@@ -60,7 +61,13 @@ type (
 		Name   string `json:"name"`
 		Create bool   `json:"create"`
 		Inject bool   `json:"inject"`
-		Labels Labels `json:"Labels"`
+		Labels Labels `json:"labels"`
+	}
+	Jsonnet struct {
+		Values    map[string]string `json:"values"`
+		Path      string            `json:"path"`
+		PathMulti string            `json:"pathMulti"`
+		Inline    string            `json:"inline"`
 	}
 	Labels         map[string]string
 	wrappedDeploys map[string]*Deploy
@@ -168,7 +175,18 @@ func (s Svc) Set(path string, value interface{}) error {
 
 	b, err = s.appFs.ReadFile(configFile)
 	if err != nil {
-		return err
+		if os.IsNotExist(err) {
+			f, err := s.appFs.Create(configFile)
+			if err != nil {
+				return err
+			}
+			if err := f.Close(); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+
 	}
 	if err = yaml.Unmarshal(b, &conf); err != nil {
 		return err
