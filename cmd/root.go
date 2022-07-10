@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"io"
+	"os"
 	"path/filepath"
 )
 
@@ -67,7 +68,7 @@ func init() {
 			return err
 		}
 		flags.workdir = w
-		return nil
+		return os.Chdir(w)
 	}
 }
 

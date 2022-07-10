@@ -145,7 +145,8 @@ deploy: <map> # deploy specifies the per environment configuration for a compone
 kustomizations: #<map> of name to Kustomization yaml
 jsonnet: #<map> of name to Jsonnet configuration
   name:
-    path: <string> # path to jsonnet file
+    path: <string> # path to jsonnet file (with single output)
+    pathMulti: <string> # path to jsonnet file (with multi output)
     values: <map> # key values pairs as Jsonnet external variables
     inline: <string> # Jsonnet program declared inline
 preservePaths: #<list> string any relative directory paths required by the generate stage (copied to tmp build context)

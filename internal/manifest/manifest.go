@@ -247,34 +247,7 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 	}
 	s.log.Debugf("wrote manifest to %s", path)
 
-	// run jsonnet
-	b, err := s.Jsonnets(deploy)
-	if err != nil {
-		return err
-	}
-	if len(b) > 0 {
-
-		// write jsonnet
-		fh, err := s.appFs.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, defaultFilePerm)
-		if err != nil {
-			return err
-		}
-		finfo, err := fh.Stat()
-		if err != nil {
-			return err
-		}
-		if finfo.Size() > 0 {
-			_, err = fh.Write([]byte("---\n"))
-			if err != nil {
-				return err
-			}
-		}
-		_, err = fh.Write(b)
-		if err != nil {
-			return err
-		}
-	}
-	return err
+	return s.jsonnetDeploy(deploy, nil)
 }
 
 func (s Svc) with(deploy *cfg.Deploy, rendered io.Writer) error {
@@ -612,11 +585,44 @@ func (s Svc) pathForTmpManifest(d *cfg.Deploy) string {
 	return s.pathForTmpComponent(d) + string(os.PathSeparator) + "manifest.yaml"
 }
 
-func (s Svc) Jsonnets(d *cfg.Deploy) ([]byte, error) {
+func (s Svc) jsonnetDeploy(d *cfg.Deploy, imp jsonnet.Importer) error {
+	path := s.pathForTmpManifest(d)
+
+	// run jsonnet
+	b, err := s.jsonnets(d, imp)
+	if err != nil {
+		return err
+	}
+	if len(b) > 0 {
+
+		// write jsonnet
+		fh, err := s.appFs.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, defaultFilePerm)
+		if err != nil {
+			return err
+		}
+		finfo, err := fh.Stat()
+		if err != nil {
+			return err
+		}
+		if finfo.Size() > 0 {
+			_, err = fh.Write([]byte("---\n"))
+			if err != nil {
+				return err
+			}
+		}
+		_, err = fh.Write(b)
+		if err != nil {
+			return err
+		}
+	}
+	return err
+}
+
+func (s Svc) jsonnets(d *cfg.Deploy, imp jsonnet.Importer) ([]byte, error) {
 	var res []byte
 	var prefix string
 	for n, j := range d.Jsonnet {
-		r, err := s.Jsonnet(n, j)
+		r, err := s.jsonnet(n, j, imp)
 		if err != nil {
 			return nil, err
 		}
@@ -631,24 +637,39 @@ func (s Svc) Jsonnets(d *cfg.Deploy) ([]byte, error) {
 	return res, nil
 }
 
-func (s Svc) Jsonnet(n string, j *cfg.Jsonnet) ([]byte, error) {
+func (s Svc) jsonnet(n string, j *cfg.Jsonnet, imp jsonnet.Importer) ([]byte, error) {
 	var b []byte
 	var err error
 	paths := []string{s.wd}
 	vm := jsonnet.MakeVM()
-	if j.Path != "" {
-		paths = append(paths, filepath.Join(s.wd, filepath.Dir(j.Path), "vendor"))
+	// allow injecting mem importer from test
+	if imp != nil {
+		vm.Importer(imp)
+	} else {
+		if j.Path != "" {
+			paths = append(paths, filepath.Join(s.wd, filepath.Dir(j.Path), "vendor"))
+		}
+		if j.PathMulti != "" {
+			paths = append(paths, filepath.Join(s.wd, filepath.Dir(j.PathMulti), "vendor"))
+		}
+		vm.Importer(&jsonnet.FileImporter{JPaths: paths})
+		for k, v := range j.Values {
+			vm.ExtVar(k, v)
+		}
 	}
-	vm.Importer(&jsonnet.FileImporter{JPaths: paths})
-	for k, v := range j.Values {
-		vm.ExtVar(k, v)
+
+	if j.PathMulti != "" {
+		if b, err = s.JsonnetPathMulti(j, vm); err != nil {
+			return nil, err
+		}
 	}
 
 	if j.Path != "" {
-		b, err = s.JsonnetPath(j, vm)
+		e, err := s.JsonnetPath(j, vm)
 		if err != nil {
 			return nil, err
 		}
+		b = append(b, e...)
 	}
 
 	if j.Inline != "" {
@@ -663,7 +684,7 @@ func (s Svc) Jsonnet(n string, j *cfg.Jsonnet) ([]byte, error) {
 }
 
 func (Svc) JsonToYaml(b []byte) ([]byte, error) {
-	m := make(map[string]interface{})
+	var m interface{}
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, err
 	}
@@ -679,11 +700,21 @@ func (s Svc) JsonnetInline(j *cfg.Jsonnet, vm *jsonnet.VM, n string) ([]byte, er
 	}
 	return s.JsonToYaml([]byte(ss))
 }
+
 func (s Svc) JsonnetPath(j *cfg.Jsonnet, vm *jsonnet.VM) ([]byte, error) {
+	str, err := vm.EvaluateFile(j.Path)
+	if err != nil {
+		return nil, err
+	}
+	return s.JsonToYaml([]byte(str))
+}
+
+func (s Svc) JsonnetPathMulti(j *cfg.Jsonnet, vm *jsonnet.VM) ([]byte, error) {
+
 	var docs map[string]string
 	var err error
 	r := bytes.Buffer{}
-	docs, err = vm.EvaluateFileMulti(j.Path)
+	docs, err = vm.EvaluateFileMulti(j.PathMulti)
 	if err != nil {
 		return nil, err
 	}
@@ -696,7 +727,7 @@ func (s Svc) JsonnetPath(j *cfg.Jsonnet, vm *jsonnet.VM) ([]byte, error) {
 	for i, d := range ordered {
 		if i != 0 {
 			r.Write([]byte("---\n"))
-			r.Write([]byte(fmt.Sprintf("# Simple-Ops Jsonnet %s\n", d)))
+			r.Write([]byte(fmt.Sprintf("# Simple-Ops jsonnet %s\n", d)))
 		}
 		b, err := s.JsonToYaml([]byte(docs[d]))
 		if err != nil {

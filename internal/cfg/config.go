@@ -64,9 +64,10 @@ type (
 		Labels Labels `json:"labels"`
 	}
 	Jsonnet struct {
-		Values map[string]string `json:"values"`
-		Path   string            `json:"path"`
-		Inline string            `json:"inline"`
+		Values    map[string]string `json:"values"`
+		Path      string            `json:"path"`
+		PathMulti string            `json:"pathMulti"`
+		Inline    string            `json:"inline"`
 	}
 	Labels         map[string]string
 	wrappedDeploys map[string]*Deploy
