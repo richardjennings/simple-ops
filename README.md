@@ -45,6 +45,9 @@ The chart version, name, repository and a sha256 digest of the .tgz content are 
 ### Container-Resources
 Lists all Resource configurations for Container specs in generated manifests either globally or per deployment.
 
+### Deploy
+Output merged Deploy configuration
+
 ### Generate
 Renders all Helm charts configured to corresponding deployment directories. 
 Performs labelling and namespace customisations and generates all templated 'with' ancillaries.
