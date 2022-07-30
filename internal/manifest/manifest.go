@@ -173,6 +173,7 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 	var err error
 	var t []byte
 	var rendered bytes.Buffer
+	var helmCRDs bytes.Buffer
 
 	s.log.Debugf("generating deploy %s:%s", deploy.Component, deploy.Environment)
 
@@ -199,6 +200,8 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 		s.client.ReleaseName = chrt.Name()
 		s.client.Namespace = deploy.Namespace.Name
 		s.client.CreateNamespace = false
+		s.client.IncludeCRDs = false
+		s.client.SkipCRDs = true
 
 		// render the helm chart
 		rel, err = s.client.Run(chrt, deploy.Values)
@@ -207,6 +210,15 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 		}
 		rendered.Write([]byte(rel.Manifest))
 		s.log.Debugf("rendered chart %s.%s for %s", chrt.Name(), chrt.Metadata.Version, deploy.Id())
+
+		for _, f := range chrt.Files {
+			if strings.HasPrefix(f.Name, "crds/") {
+				if helmCRDs.Len() > 0 {
+					helmCRDs.Write([]byte("---\n"))
+				}
+				helmCRDs.Write(f.Data)
+			}
+		}
 	}
 
 	// with
@@ -234,6 +246,13 @@ func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
 	path := s.pathForTmpManifest(deploy)
 	if err := s.appFs.WriteFile(path, t, defaultFilePerm); err != nil {
 		return err
+	}
+
+	// write CRDs
+	if helmCRDs.Len() > 0 {
+		if err := s.appFs.WriteFile(s.pathForTmpCRDs(deploy), helmCRDs.Bytes(), defaultFilePerm); err != nil {
+			return err
+		}
 	}
 
 	// copy preserve paths
@@ -583,6 +602,11 @@ func pathForTmpDeploy(d *cfg.Deploy, tmpDir string) string {
 // /tmp/dir/deploy/prod/component/manifest.yaml
 func (s Svc) pathForTmpManifest(d *cfg.Deploy) string {
 	return s.pathForTmpComponent(d) + string(os.PathSeparator) + "manifest.yaml"
+}
+
+// /tmp/dir/deploy/prod/component/crds.yaml
+func (s Svc) pathForTmpCRDs(d *cfg.Deploy) string {
+	return s.pathForTmpComponent(d) + string(os.PathSeparator) + "crds.yaml"
 }
 
 func (s Svc) jsonnetDeploy(d *cfg.Deploy, imp jsonnet.Importer) error {
