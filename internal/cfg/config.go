@@ -45,6 +45,7 @@ type (
 		Environment        string                          `json:"-"`
 		Component          string                          `json:"-"`
 		FsSlice            map[string][]types.FieldSpec    `json:"fsslice"`
+		Chain              []string                        `json:"chain"`
 	}
 	Conf struct {
 		Deploy
@@ -336,6 +337,9 @@ func (s Svc) buildDeploys(m map[string]interface{}, component string) (Deploys, 
 		deploy := wrappedDeploys[env]
 		deploy.Environment = env
 		deploy.Component = component
+		if len(deploy.Chain) == 0 {
+			deploy.Chain = []string{"helm", "with", "namespace", "labels", "kustomize", "jsonnet"}
+		}
 		deploys = append(deploys, deploy)
 	}
 
