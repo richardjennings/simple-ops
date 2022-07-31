@@ -13,21 +13,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
-	"helm.sh/helm/v3/pkg/release"
-	"io"
 	"io/fs"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"path/filepath"
-	"sigs.k8s.io/kustomize/api/filters/labels"
-	"sigs.k8s.io/kustomize/api/filters/namespace"
 	"sigs.k8s.io/kustomize/api/krusty"
-	"sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
-	"sigs.k8s.io/kustomize/kyaml/kio"
 	"sort"
 	"strings"
 )
@@ -159,7 +151,7 @@ func (s *Svc) doGenerate(deploys cfg.Deploys) error {
 		return err
 	}
 	for _, deploy := range deploys {
-		if err := s.generateDeploy(deploy); err != nil {
+		if err := s.chainDeploy(deploy); err != nil {
 			return err
 		}
 	}
@@ -167,163 +159,58 @@ func (s *Svc) doGenerate(deploys cfg.Deploys) error {
 	return nil
 }
 
-func (s Svc) generateDeploy(deploy *cfg.Deploy) error {
-	var chrt *chart.Chart
-	var rel *release.Release
+func (s Svc) chainDeploy(deploy *cfg.Deploy) error {
+	var manifest bytes.Buffer
+	var crd bytes.Buffer
 	var err error
-	var t []byte
-	var rendered bytes.Buffer
-	var helmCRDs bytes.Buffer
 
-	s.log.Debugf("generating deploy %s:%s", deploy.Component, deploy.Environment)
-
-	if deploy.Chart != "" {
-		if chrt, err = s.loadChart(deploy); err != nil {
-			return err
-		}
-	}
-
-	if err := s.appFs.MkdirAll(s.pathForTmpComponent(deploy), defaultDirPerm); err != nil {
+	if err = s.appFs.MkdirAll(s.pathForTmpComponent(deploy), defaultDirPerm); err != nil {
 		return err
 	}
 
-	// optionally create namespace manifest
+	// create namespace manifest
 	if deploy.Namespace.Create {
-		if t, err = s.createNamespaceManifest(deploy); err != nil {
-			return err
-		}
-		rendered.Write(t)
-		s.log.Debugf("created namespace manifest for %s", deploy.Id())
-	}
-
-	if deploy.Chart != "" {
-		s.client.ReleaseName = chrt.Name()
-		s.client.Namespace = deploy.Namespace.Name
-		s.client.CreateNamespace = false
-		s.client.IncludeCRDs = false
-		s.client.SkipCRDs = true
-
-		// render the helm chart
-		rel, err = s.client.Run(chrt, deploy.Values)
+		t, err := s.createNamespaceManifest(deploy)
 		if err != nil {
 			return err
 		}
-		rendered.Write([]byte(rel.Manifest))
-		s.log.Debugf("rendered chart %s.%s for %s", chrt.Name(), chrt.Metadata.Version, deploy.Id())
-
-		for _, f := range chrt.Files {
-			if strings.HasPrefix(f.Name, "crds/") {
-				if helmCRDs.Len() > 0 {
-					helmCRDs.Write([]byte("---\n"))
-				}
-				helmCRDs.Write(f.Data)
-			}
-		}
+		manifest.Write(t)
+		s.log.Debugf("created namespace manifest for %s", deploy.Id())
 	}
 
-	// with
-	if deploy.With != nil {
-		if err := s.with(deploy, &rendered); err != nil {
+	// run through chain of actions
+	for _, c := range deploy.Chain {
+		fn, ok := actions[c]
+		if !ok {
+			return fmt.Errorf("action %s not found", c)
+		}
+		err = fn(deploy, &manifest, &crd, s)
+		if err != nil {
 			return err
 		}
 	}
 
-	// kustomize labels
-	t, err = s.kustomizeLabels(deploy.Labels, rendered.Bytes())
-	if err != nil {
-		return err
-	}
-
-	// inject namespace
-	if deploy.Namespace.Inject {
-		if t, err = s.kustomizeNamespace(deploy, t); err != nil {
+	// write tmp
+	if manifest.Len() > 0 {
+		if err := s.writeTmp(deploy, &manifest); err != nil {
 			return err
 		}
-		s.log.Debugf("injected namespace %s", deploy.Namespace.Name)
-	}
-
-	// write manifest
-	path := s.pathForTmpManifest(deploy)
-	if err := s.appFs.WriteFile(path, t, defaultFilePerm); err != nil {
-		return err
 	}
 
 	// write CRDs
-	if helmCRDs.Len() > 0 {
-		if err := s.appFs.WriteFile(s.pathForTmpCRDs(deploy), helmCRDs.Bytes(), defaultFilePerm); err != nil {
+	if crd.Len() > 0 {
+		if err := s.appFs.WriteFile(s.pathForTmpCRDs(deploy), crd.Bytes(), defaultFilePerm); err != nil {
 			return err
 		}
 	}
 
-	// copy preserve paths
-	if err := s.copyKustomizationPaths(deploy); err != nil {
-		return err
-	}
-
-	// run kustomizations if any
-	if err := s.kustomizeDeploy(deploy); err != nil {
-		return err
-	}
-	s.log.Debugf("wrote manifest to %s", path)
-
-	return s.jsonnetDeploy(deploy, nil)
+	return nil
 }
 
-func (s Svc) with(deploy *cfg.Deploy, rendered io.Writer) error {
-	var t []byte
-	var err error
-
-	// ordered with templates
-	var orderedFiles []string
-	for p := range deploy.With {
-		orderedFiles = append(orderedFiles, p)
-	}
-	sort.Strings(orderedFiles)
-	for _, p := range orderedFiles {
-		withs, ok := deploy.With[p]
-		if !ok {
-			return fmt.Errorf("could not find with %s", p)
-		}
-		var ordered []string
-		// iterate in-order such that the generated output
-		// is idempotent
-		for name := range withs {
-			ordered = append(ordered, name)
-		}
-		sort.Strings(ordered)
-		for _, name := range ordered {
-			with, ok := withs[name]
-			if !ok {
-				return fmt.Errorf("could not find with %s", name)
-			}
-			if with.Path == "" {
-				t, err = s.generateWith(p, with, name)
-				if err != nil {
-					return err
-				}
-				_, err = rendered.Write([]byte("---\n"))
-				if err != nil {
-					return err
-				}
-				_, err = rendered.Write([]byte(fmt.Sprintf("# Source: simple-ops with %s.yml\n", p)))
-				if err != nil {
-					return err
-				}
-				_, err = rendered.Write(t)
-				if err != nil {
-					return err
-				}
-				s.log.Debugf("generated with %s type %s for %s", name, p, deploy.Id())
-
-			} else {
-				if err := s.generateWithToPath(p, with, name); err != nil {
-					return err
-				}
-				s.log.Debugf("generated with %s type %s for %s to path %s", name, p, deploy.Id(), with.Path)
-			}
-		}
-	}
-	return nil
+func (s Svc) writeTmp(deploy *cfg.Deploy, man *bytes.Buffer) error {
+	// write manifest
+	path := s.pathForTmpManifest(deploy)
+	return s.appFs.WriteFile(path, man.Bytes(), defaultFilePerm)
 }
 
 // generateWith uses file named with/{n}.yml as a template rendered
@@ -402,37 +289,6 @@ func (s Svc) withPath(path string) (string, error) {
 	return path, nil
 }
 
-func (s Svc) loadChart(deploy *cfg.Deploy) (*chart.Chart, error) {
-	var chrt *chart.Chart
-	var err error
-
-	// if using memfs under test use LoadArchive with archive file
-	// The directory handling code in Helm cannot be persuaded to
-	// use the fs abstraction. @todo better
-	if _, ok := s.appFs.Fs.(*afero.MemMapFs); ok {
-		f, err := s.appFs.Open(s.PathForChart(deploy.Chart))
-		if err != nil {
-			return nil, err
-		}
-		defer func() {
-			err = f.Close()
-		}()
-		chrt, err = loader.LoadArchive(f)
-	} else {
-		chrt, err = loader.Load(s.PathForChart(deploy.Chart))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// @todo check chart dependencies
-	if len(chrt.Dependencies()) != len(chrt.Metadata.Dependencies) {
-		return nil, errors.New("dependencies not installed")
-	}
-
-	return chrt, err
-}
-
 // Namespace create without spec and status for tidier yaml
 type Namespace struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -461,30 +317,6 @@ func (Svc) createNamespaceManifest(deploy *cfg.Deploy) ([]byte, error) {
 	}
 	// remove creationTimestamp: null
 	return bytes.Replace(yml, []byte("creationTimestamp: null"), []byte(""), 1), nil
-}
-
-func (Svc) kustomizeNamespace(deploy *cfg.Deploy, manifest []byte) ([]byte, error) {
-	buf := bytes.Buffer{}
-	err := kio.Pipeline{
-		Inputs:  []kio.Reader{&kio.ByteReader{Reader: bytes.NewBuffer(manifest)}},
-		Filters: []kio.Filter{namespace.Filter{Namespace: deploy.Namespace.Name, FsSlice: types.FsSlice{}}},
-		Outputs: []kio.Writer{kio.ByteWriter{Writer: &buf}},
-	}.Execute()
-	return buf.Bytes(), err
-}
-
-func (Svc) kustomizeLabels(lbls map[string]string, manifest []byte) ([]byte, error) {
-	buf := bytes.Buffer{}
-	fslice := types.FsSlice{
-		{Path: "metadata/labels", CreateIfNotPresent: true},
-		{Path: "spec/template/metadata/labels", CreateIfNotPresent: false},
-	}
-	err := kio.Pipeline{
-		Inputs:  []kio.Reader{&kio.ByteReader{Reader: bytes.NewBuffer(manifest)}},
-		Filters: []kio.Filter{labels.Filter{Labels: lbls, FsSlice: fslice}},
-		Outputs: []kio.Writer{kio.ByteWriter{Writer: &buf}},
-	}.Execute()
-	return buf.Bytes(), err
 }
 
 func (s Svc) copyKustomizationPaths(d *cfg.Deploy) error {

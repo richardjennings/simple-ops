@@ -90,6 +90,7 @@ deploy:
 					},
 				},
 			},
+			Chain: []string{"helm", "with", "namespace", "labels", "kustomize", "jsonnet"},
 		},
 		{
 			Chart:       "b.tgz",
@@ -105,6 +106,7 @@ deploy:
 					},
 				},
 			},
+			Chain: []string{"helm", "with", "namespace", "labels", "kustomize", "jsonnet"},
 		},
 	}
 	assert.DeepEqual(
@@ -194,7 +196,14 @@ func TestSvc_buildDeploys(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	expected := Deploys{&Deploy{Values: map[string]interface{}{"overridesTrue": "false"}, Component: "test", Environment: "test"}}
+	expected := Deploys{
+		&Deploy{
+			Values:      map[string]interface{}{"overridesTrue": "false"},
+			Component:   "test",
+			Environment: "test",
+			Chain:       []string{"helm", "with", "namespace", "labels", "kustomize", "jsonnet"},
+		},
+	}
 	assert.DeepEqual(t, expected, actual)
 }
 
@@ -213,7 +222,14 @@ func TestSvc_buildDeploys_without_values(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	expected := Deploys{&Deploy{Values: nil, Component: "test", Environment: "test"}}
+	expected := Deploys{
+		&Deploy{
+			Values:      nil,
+			Component:   "test",
+			Environment: "test",
+			Chain:       []string{"helm", "with", "namespace", "labels", "kustomize", "jsonnet"},
+		},
+	}
 	assert.DeepEqual(t, expected, actual)
 }
 

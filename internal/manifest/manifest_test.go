@@ -85,6 +85,7 @@ func TestSvc_GenerateVerify(t *testing.T) {
 			},
 			Environment: "env",
 			Component:   "test",
+			Chain:       []string{"helm", "with", "namespace"},
 		},
 	}
 	if err := m.Generate(deploys); err != nil {
@@ -144,7 +145,7 @@ metadata:
 	assert.Equal(t, "metadata:\n  name: path\n", string(withPath))
 }
 
-func TestSvc_generateDeploy(t *testing.T) {
+func TestSvc_chainDeploy(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	m := NewSvc(fs, "/test", logrus.New())
 	m.tmp = "/test"
@@ -154,8 +155,9 @@ func TestSvc_generateDeploy(t *testing.T) {
 		Chart:       "test-0.1.0.tgz",
 		Environment: "env",
 		Component:   "test",
+		Chain:       []string{"helm"},
 	}
-	err := m.generateDeploy(deploy)
+	err := m.chainDeploy(deploy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +165,8 @@ func TestSvc_generateDeploy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := `# Source: test/templates/test.yaml
+	expected := `---
+# Source: test/templates/test.yaml
 test:
 `
 	assert.Equal(t, string(actual), expected)
