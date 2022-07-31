@@ -64,7 +64,10 @@ func jsonnetAction(deploy *cfg.Deploy, man *bytes.Buffer, _ *bytes.Buffer, s Svc
 }
 
 // Labels action templates namespace config
-func labels(deploy *cfg.Deploy, man *bytes.Buffer, _ *bytes.Buffer, s Svc) error {
+func labels(deploy *cfg.Deploy, man *bytes.Buffer, _ *bytes.Buffer, _ Svc) error {
+	if len(deploy.Labels) == 0 {
+		return nil
+	}
 	buf := bytes.Buffer{}
 	fslice := types.FsSlice{
 		{Path: "metadata/labels", CreateIfNotPresent: true},
@@ -80,7 +83,10 @@ func labels(deploy *cfg.Deploy, man *bytes.Buffer, _ *bytes.Buffer, s Svc) error
 }
 
 // Namespace action templates namespace config
-func namespace(deploy *cfg.Deploy, man *bytes.Buffer, _ *bytes.Buffer, s Svc) error {
+func namespace(deploy *cfg.Deploy, man *bytes.Buffer, _ *bytes.Buffer, _ Svc) error {
+	if !deploy.Namespace.Inject {
+		return nil
+	}
 	buf := bytes.Buffer{}
 	err := kio.Pipeline{
 		Inputs:  []kio.Reader{&kio.ByteReader{Reader: man}},
@@ -146,7 +152,7 @@ func helm(deploy *cfg.Deploy, man *bytes.Buffer, crds *bytes.Buffer, s Svc) erro
 }
 
 // With action adds with templates
-func with(deploy *cfg.Deploy, man *bytes.Buffer, crds *bytes.Buffer, s Svc) error {
+func with(deploy *cfg.Deploy, man *bytes.Buffer, _ *bytes.Buffer, s Svc) error {
 	var t []byte
 	var err error
 
