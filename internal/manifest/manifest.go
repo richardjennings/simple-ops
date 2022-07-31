@@ -13,20 +13,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
-	"io"
 	"io/fs"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"path/filepath"
-	lbl "sigs.k8s.io/kustomize/api/filters/labels"
-	ns "sigs.k8s.io/kustomize/api/filters/namespace"
 	"sigs.k8s.io/kustomize/api/krusty"
-	"sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
-	"sigs.k8s.io/kustomize/kyaml/kio"
 	"sort"
 	"strings"
 )
@@ -214,63 +207,6 @@ func (s Svc) chainDeploy(deploy *cfg.Deploy) error {
 	return nil
 }
 
-func (s Svc) with(deploy *cfg.Deploy, rendered io.Writer) error {
-	var t []byte
-	var err error
-
-	// ordered with templates
-	var orderedFiles []string
-	for p := range deploy.With {
-		orderedFiles = append(orderedFiles, p)
-	}
-	sort.Strings(orderedFiles)
-	for _, p := range orderedFiles {
-		withs, ok := deploy.With[p]
-		if !ok {
-			return fmt.Errorf("could not find with %s", p)
-		}
-		var ordered []string
-		// iterate in-order such that the generated output
-		// is idempotent
-		for name := range withs {
-			ordered = append(ordered, name)
-		}
-		sort.Strings(ordered)
-		for _, name := range ordered {
-			with, ok := withs[name]
-			if !ok {
-				return fmt.Errorf("could not find with %s", name)
-			}
-			if with.Path == "" {
-				t, err = s.generateWith(p, with, name)
-				if err != nil {
-					return err
-				}
-				_, err = rendered.Write([]byte("---\n"))
-				if err != nil {
-					return err
-				}
-				_, err = rendered.Write([]byte(fmt.Sprintf("# Source: simple-ops with %s.yml\n", p)))
-				if err != nil {
-					return err
-				}
-				_, err = rendered.Write(t)
-				if err != nil {
-					return err
-				}
-				s.log.Debugf("generated with %s type %s for %s", name, p, deploy.Id())
-
-			} else {
-				if err := s.generateWithToPath(p, with, name); err != nil {
-					return err
-				}
-				s.log.Debugf("generated with %s type %s for %s to path %s", name, p, deploy.Id(), with.Path)
-			}
-		}
-	}
-	return nil
-}
-
 func (s Svc) writeTmp(deploy *cfg.Deploy, man *bytes.Buffer) error {
 	// write manifest
 	path := s.pathForTmpManifest(deploy)
@@ -353,37 +289,6 @@ func (s Svc) withPath(path string) (string, error) {
 	return path, nil
 }
 
-func (s Svc) loadChart(deploy *cfg.Deploy) (*chart.Chart, error) {
-	var chrt *chart.Chart
-	var err error
-
-	// if using memfs under test use LoadArchive with archive file
-	// The directory handling code in Helm cannot be persuaded to
-	// use the fs abstraction. @todo better
-	if _, ok := s.appFs.Fs.(*afero.MemMapFs); ok {
-		f, err := s.appFs.Open(s.PathForChart(deploy.Chart))
-		if err != nil {
-			return nil, err
-		}
-		defer func() {
-			err = f.Close()
-		}()
-		chrt, err = loader.LoadArchive(f)
-	} else {
-		chrt, err = loader.Load(s.PathForChart(deploy.Chart))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// @todo check chart dependencies
-	if len(chrt.Dependencies()) != len(chrt.Metadata.Dependencies) {
-		return nil, errors.New("dependencies not installed")
-	}
-
-	return chrt, err
-}
-
 // Namespace create without spec and status for tidier yaml
 type Namespace struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -412,30 +317,6 @@ func (Svc) createNamespaceManifest(deploy *cfg.Deploy) ([]byte, error) {
 	}
 	// remove creationTimestamp: null
 	return bytes.Replace(yml, []byte("creationTimestamp: null"), []byte(""), 1), nil
-}
-
-func (Svc) kustomizeNamespace(deploy *cfg.Deploy, manifest []byte) ([]byte, error) {
-	buf := bytes.Buffer{}
-	err := kio.Pipeline{
-		Inputs:  []kio.Reader{&kio.ByteReader{Reader: bytes.NewBuffer(manifest)}},
-		Filters: []kio.Filter{ns.Filter{Namespace: deploy.Namespace.Name, FsSlice: types.FsSlice{}}},
-		Outputs: []kio.Writer{kio.ByteWriter{Writer: &buf}},
-	}.Execute()
-	return buf.Bytes(), err
-}
-
-func (Svc) kustomizeLabels(lbls map[string]string, manifest []byte) ([]byte, error) {
-	buf := bytes.Buffer{}
-	fslice := types.FsSlice{
-		{Path: "metadata/labels", CreateIfNotPresent: true},
-		{Path: "spec/template/metadata/labels", CreateIfNotPresent: false},
-	}
-	err := kio.Pipeline{
-		Inputs:  []kio.Reader{&kio.ByteReader{Reader: bytes.NewBuffer(manifest)}},
-		Filters: []kio.Filter{lbl.Filter{Labels: lbls, FsSlice: fslice}},
-		Outputs: []kio.Writer{kio.ByteWriter{Writer: &buf}},
-	}.Execute()
-	return buf.Bytes(), err
 }
 
 func (s Svc) copyKustomizationPaths(d *cfg.Deploy) error {

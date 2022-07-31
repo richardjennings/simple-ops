@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/richardjennings/simple-ops/internal/cfg"
+	"github.com/spf13/afero"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -101,7 +102,8 @@ func helm(deploy *cfg.Deploy, man *bytes.Buffer, crds *bytes.Buffer, s Svc) erro
 	var err error
 
 	if strings.HasSuffix(deploy.Chart, ".tgz") {
-		f, err := s.appFs.Open(s.PathForChart(deploy.Chart))
+		var f afero.File
+		f, err = s.appFs.Open(s.PathForChart(deploy.Chart))
 		if err != nil {
 			return err
 		}
